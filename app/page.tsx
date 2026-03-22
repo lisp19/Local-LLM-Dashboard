@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip } from 'antd';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import type { DashboardData } from '../lib/systemMetrics';
 
 const { Title, Text } = Typography;
@@ -11,6 +11,7 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
+  const [hostName, setHostName] = useState('127.0.0.1');
   const [pinnedName, setPinnedName] = useState<string | null>('vllm_qw3');
   
   // Benchmark State
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const [bmPrompt, setBmPrompt] = useState('你好，介绍一下你自己,200字以内');
   const [enableThinking, setEnableThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [reasoningOutput, setReasoningOutput] = useState('');
   const [streamOutput, setStreamOutput] = useState('');
   const [ttft, setTtft] = useState<number | null>(null);
   const [tps, setTps] = useState<number | null>(null);
@@ -35,8 +37,10 @@ export default function DashboardPage() {
       id: runtime.id,
       name: runtime.name,
       port: port,
-      model: modelConfig?.Model || runtime.name
+      model: modelConfig?.Model || runtime.name,
+      backend: modelConfig?.Backend || 'unknown'
     });
+    setReasoningOutput('');
     setStreamOutput('');
     setTtft(null);
     setTps(null);
@@ -52,6 +56,7 @@ export default function DashboardPage() {
     }
     
     setIsStreaming(true);
+    setReasoningOutput('');
     setStreamOutput('');
     setTtft(null);
     setTps(null);
@@ -109,10 +114,14 @@ export default function DashboardPage() {
               try {
                 const json = JSON.parse(data);
                 const content = json.choices?.[0]?.delta?.content;
-                const reason = json.choices?.[0]?.delta?.reasoning_content;
-                const text = content || reason;
-                if (text) {
-                  setStreamOutput(prev => prev + text);
+                const reason = json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning || json.choices?.[0]?.delta?.reason;
+                if (reason) {
+                  setReasoningOutput(prev => prev + reason);
+                  tokens++;
+                  setTokenCount(tokens);
+                }
+                if (content) {
+                  setStreamOutput(prev => prev + content);
                   tokens++;
                   setTokenCount(tokens);
                 }
@@ -145,6 +154,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== 'undefined') {
+      setHostName(window.location.hostname);
+    }
   }, []);
 
   if (!mounted) return null;
@@ -327,6 +339,12 @@ export default function DashboardPage() {
                                  else if (kind.includes('cpu')) color = 'green';
                                  
                                  content = <Tag color={color} bordered={false} className="!m-0 font-medium capitalize">{String(v)}</Tag>;
+                               } else if (k === 'Backend') {
+                                 const kind = String(v).toLowerCase();
+                                 let color = 'default';
+                                 if (kind.includes('vllm')) color = 'purple';
+                                 else if (kind.includes('llama.cpp')) color = 'geekblue';
+                                 content = <Tag color={color} bordered={false} className="!m-0 font-medium">{String(v)}</Tag>;
                                } else if (k === 'Benchmark') {
                                  content = <span className="text-[#1677ff] font-bold text-[14px] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">{String(v)}</span>;
                                }
@@ -371,18 +389,28 @@ export default function DashboardPage() {
           <div className="mb-3">
             <Text type="secondary" className="text-xs mb-1 block">Local API Endpoint:</Text>
             <Typography.Paragraph 
-              copyable={{ text: `http://127.0.0.1:${benchmarkContainer?.port}/v1` }}
-              className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200"
+              copyable={{ text: `http://${hostName}:${benchmarkContainer?.port}/v1` }}
+              className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200 break-all"
               style={{ marginBottom: 0 }}
             >
-              http://127.0.0.1:{benchmarkContainer?.port}/v1
+              http://{hostName}:{benchmarkContainer?.port}/v1
             </Typography.Paragraph>
           </div>
           <div className="flex items-center justify-between mb-2">
              <Text strong className="text-slate-700">Test Prompt:</Text>
              <Space>
-               <Text type="secondary" className="text-xs"><SettingOutlined /> Enable Thinking</Text>
-               <Switch size="small" checked={enableThinking} onChange={setEnableThinking} disabled={isStreaming} />
+               <Text type="secondary" className="text-xs">
+                 <SettingOutlined /> Enable Thinking
+                 {benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') && (
+                   <Tooltip title="llama.cpp 后端暂不支持通过客户端请求动态关闭思考过程。"><InfoCircleOutlined className="ml-1 text-slate-400" /></Tooltip>
+                 )}
+               </Text>
+               <Switch 
+                 size="small" 
+                 checked={benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') ? true : enableThinking} 
+                 onChange={setEnableThinking} 
+                 disabled={isStreaming || benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp')} 
+               />
              </Space>
           </div>
           <Input.TextArea 
@@ -400,9 +428,21 @@ export default function DashboardPage() {
         <Divider className="my-3 text-slate-400 text-xs text-center" style={{ fontSize: '12px' }}>Output</Divider>
         
         <div 
-           className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono text-sm leading-relaxed overflow-y-auto whitespace-pre-wrap h-[300px]"
+           className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono text-sm leading-relaxed overflow-y-auto h-[300px]"
         >
-          {streamOutput || <span className="text-slate-600 italic">Waiting for request to start...</span>}
+          {reasoningOutput && (
+            <details className="mb-3 text-slate-400 bg-slate-800/40 border border-slate-700/50 rounded p-2" open>
+              <summary className="cursor-pointer select-none text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors outline-none">
+                <span className="ml-1 tracking-wider">REASONING PROCESS</span>
+              </summary>
+              <div className="mt-2 text-xs italic whitespace-pre-wrap leading-relaxed border-t border-slate-700/50 pt-2 pb-1">
+                {reasoningOutput}
+              </div>
+            </details>
+          )}
+          <div className="whitespace-pre-wrap">
+            {streamOutput || (!reasoningOutput && <span className="text-slate-600 italic">Waiting for request to start...</span>)}
+          </div>
         </div>
 
         {/* Stats Row */}
