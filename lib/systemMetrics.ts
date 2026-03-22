@@ -1,8 +1,7 @@
 import * as os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { loadModelConfig } from './appConfig';
 
 const execFileAsync = promisify(execFile);
 
@@ -191,23 +190,14 @@ export async function getDockerContainers(): Promise<ContainerMetrics[]> {
   }
 }
 
-export async function getModelConfig(): Promise<ModelConfig> {
-  try {
-    const configPath = path.join(process.cwd(), 'model-config.json');
-    const content = await fs.readFile(configPath, 'utf8');
-    return JSON.parse(content);
-  } catch (err) {
-    console.error('Failed to read model-config.json', err);
-    return {};
-  }
-}
+// Removed local getModelConfig in favor of centralized loader
 
 export async function getDashboardData(): Promise<DashboardData> {
   const [system, gpus, containers, modelConfig] = await Promise.all([
     getSystemMetrics(),
     getGpuMetrics(),
     getDockerContainers(),
-    getModelConfig()
+    loadModelConfig()
   ]);
 
   const configKeys = Object.keys(modelConfig);

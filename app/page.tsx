@@ -10,6 +10,7 @@ const { Title, Text } = Typography;
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function DashboardPage() {
+  const { data: appConfig } = useSWR('/api/app-config', fetcher);
   const [mounted, setMounted] = useState(false);
   const [hostName, setHostName] = useState('127.0.0.1');
   const [pinnedName, setPinnedName] = useState<string | null>('vllm_qw3');
@@ -172,6 +173,16 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4">
           <Badge status={isValidating ? 'processing' : (error ? 'error' : 'success')} text={isValidating ? 'Syncing' : (error ? 'Error' : 'Live')} className="mr-2" />
           {data && <Text type="secondary">Last updated: {new Date().toLocaleTimeString()}</Text>}
+          <Button
+            type="primary"
+            size="small"
+            className="ml-2 shadow-sm"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', border: 'none' }}
+            onClick={() => window.open(`http://${hostName}:${appConfig?.openWebUIPort || 53000}`, '_blank')}
+            title="Open WebUI"
+          >
+            💬 Open WebUI
+          </Button>
         </div>
       </div>
 

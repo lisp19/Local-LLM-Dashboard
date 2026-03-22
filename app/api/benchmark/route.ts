@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
+import { loadAppConfig } from '../../../lib/appConfig';
 
 export async function POST(req: NextRequest) {
   try {
+    const config = await loadAppConfig();
     const { port, model, prompt, enableThinking } = await req.json();
 
     if (!port || !model) {
@@ -14,7 +16,7 @@ export async function POST(req: NextRequest) {
     // Auto-discover exactly what model name the container expects
     try {
       const modelsRes = await fetch(`${baseUrl}/v1/models`, {
-        headers: { 'Authorization': 'Bearer vllm-test' }
+        headers: { 'Authorization': `Bearer ${config.vllmApiKey}` }
       });
       if (modelsRes.ok) {
         const modelsData = await modelsRes.json();
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer vllm-test'
+        'Authorization': `Bearer ${config.vllmApiKey}`
       },
       body: JSON.stringify(payload)
     });
