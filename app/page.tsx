@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined } from '@ant-design/icons';
 import type { DashboardData } from '../lib/systemMetrics';
 
 const { Title, Text } = Typography;
@@ -286,6 +286,21 @@ export default function DashboardPage() {
                             >
                                 API Test
                             </Button>
+                            {(() => {
+                              const portMatch = runtime.ports?.match(/(\d+)->/);                              
+                              const p = portMatch ? portMatch[1] : null;
+                              if (!p) return null;
+                              return (
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  icon={<BarChartOutlined />}
+                                  className="ml-1 px-1.5 text-slate-400 hover:text-orange-500 hover:bg-orange-50"
+                                  title="View Prometheus Metrics Dashboard"
+                                  onClick={() => window.open(`/metrics?port=${p}&name=${encodeURIComponent(runtime.name)}`, '_blank')}
+                                />
+                              );
+                            })()}
                             {pinnedName === runtime.name && <Tag color="blue" bordered={false} className="ml-2 !mr-0 font-medium">Pinned</Tag>}
                             {modelConfig && (modelConfig.Arch || modelConfig.Architecture) && (() => {
                                const archVal = String(modelConfig.Arch || modelConfig.Architecture);
