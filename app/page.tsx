@@ -264,13 +264,16 @@ export default function DashboardPage() {
                             </button>
                             <Title level={5} style={{ margin: 0, color: '#0f172a' }}>{runtime.name}</Title>
                             <Button 
-                                type="text" 
+                                type="primary"
+                                ghost
                                 size="small" 
                                 icon={<PlayCircleOutlined />} 
-                                className="ml-1 px-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50" 
+                                className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105" 
                                 onClick={() => handleOpenBenchmark(runtime, modelConfig)}
-                                title="Run Benchmark"
-                            />
+                                title="Benchmark & Test API"
+                            >
+                                API Test
+                            </Button>
                             {pinnedName === runtime.name && <Tag color="blue" bordered={false} className="ml-2 !mr-0 font-medium">Pinned</Tag>}
                             {modelConfig && (modelConfig.Arch || modelConfig.Architecture) && (() => {
                                const archVal = String(modelConfig.Arch || modelConfig.Architecture);
@@ -365,6 +368,16 @@ export default function DashboardPage() {
         destroyOnClose
       >
         <div className="mb-4">
+          <div className="mb-3">
+            <Text type="secondary" className="text-xs mb-1 block">Local API Endpoint:</Text>
+            <Typography.Paragraph 
+              copyable={{ text: `http://127.0.0.1:${benchmarkContainer?.port}/v1` }}
+              className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200"
+              style={{ marginBottom: 0 }}
+            >
+              http://127.0.0.1:{benchmarkContainer?.port}/v1
+            </Typography.Paragraph>
+          </div>
           <div className="flex items-center justify-between mb-2">
              <Text strong className="text-slate-700">Test Prompt:</Text>
              <Space>
