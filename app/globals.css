@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --background: #eef2ff;
+  --foreground: #0f172a;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  margin: 0;
+}
+
+/* Material 3 smooth transitions */
+* {
+  transition: background-color 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1);
+}

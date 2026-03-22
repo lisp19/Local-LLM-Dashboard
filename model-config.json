@@ -1,0 +1,46 @@
+{
+  "glm-cpu": {
+    "Model": "GLM-4.7-Flash-30B-A3B",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_Q4_K_M",
+    "Runtime": "cpu",
+    "Arch": "MoE",
+    "Context": "192k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "15Tks/s"
+  },
+  "gpt-cpu": {
+    "Model": "GPT OSS-20B",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_Q4_K_M",
+    "Runtime": "cpu",
+    "Arch": "MoE",
+    "Context": "128k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "20Tks/s"
+  },
+  "gemma-cpu": {
+    "Model": "Gemma3-it-27B",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_Q4_K_M",
+    "Runtime": "cpu",
+    "Arch": "Dense",
+    "Context": "128k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "5Tks/s"
+  },
+  "vllm_qw3": {
+    "Model": "Qwen3.5-35B-A3B",
+    "Backend": "vLLM",
+    "Quant": "AWQ W4A16",
+    "Runtime": "nvidia",
+    "Arch": "MoE",
+    "Context": "128k",
+    "Cache_Type_K": "FP16",
+    "Cache_Type_V": "FP16",
+    "Benchmark": "115Tks/s"
+  }
+}

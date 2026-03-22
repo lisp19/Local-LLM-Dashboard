@@ -1,0 +1,17 @@
+[Unit]
+Description=VLLM/Llama.cpp Monitor Dashboard
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# User=your_username
+WorkingDirectory=/home/lsp/kanban
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
