@@ -32,6 +32,28 @@
     "Cache_Type_V": "Q4_0",
     "Benchmark": "5Tks/s"
   },
+  "gemma3-1.58": {
+    "Model": "Gemma3-it-27B",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_IQ1_M b1.58",
+    "Runtime": "cpu",
+    "Arch": "Dense",
+    "Context": "32k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "5Tks/s"
+  },
+  "qw3-1.58": {
+    "Model": "Qwen3-30B-A3B-Instruct",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_IQ1_M b1.58",
+    "Runtime": "cpu",
+    "Arch": "MoE",
+    "Context": "32k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "15Tks/s"
+  },
   "vllm_qw3": {
     "Model": "Qwen3.5-35B-A3B",
     "Backend": "vLLM",
