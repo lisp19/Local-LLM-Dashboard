@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled } from '@ant-design/icons';
+import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space } from 'antd';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined } from '@ant-design/icons';
 import type { DashboardData } from '../lib/systemMetrics';
 
 const { Title, Text } = Typography;
@@ -12,6 +12,132 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [pinnedName, setPinnedName] = useState<string | null>('vllm_qw3');
+  
+  // Benchmark State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [benchmarkContainer, setBenchmarkContainer] = useState<any>(null);
+  const [bmPrompt, setBmPrompt] = useState('你好，介绍一下你自己,200字以内');
+  const [enableThinking, setEnableThinking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamOutput, setStreamOutput] = useState('');
+  const [ttft, setTtft] = useState<number | null>(null);
+  const [tps, setTps] = useState<number | null>(null);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [decodeTime, setDecodeTime] = useState<number | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleOpenBenchmark = (runtime: any, modelConfig: any) => {
+    const portMatch = runtime.ports?.match(/:(\d+)->/);
+    const port = portMatch ? portMatch[1] : null;
+    
+    setBenchmarkContainer({
+      id: runtime.id,
+      name: runtime.name,
+      port: port,
+      model: modelConfig?.Model || runtime.name
+    });
+    setStreamOutput('');
+    setTtft(null);
+    setTps(null);
+    setTokenCount(0);
+    setDecodeTime(null);
+    setIsModalOpen(true);
+  };
+
+  const startBenchmark = async () => {
+    if (!benchmarkContainer?.port) {
+       setStreamOutput('Error: Unable to parse port from container.');
+       return;
+    }
+    
+    setIsStreaming(true);
+    setStreamOutput('');
+    setTtft(null);
+    setTps(null);
+    setTokenCount(0);
+    setDecodeTime(null);
+
+    const startTime = Date.now();
+    let firstTokenTime: number | null = null;
+    let tokens = 0;
+
+    try {
+      const res = await fetch('/api/benchmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          port: benchmarkContainer.port,
+          model: benchmarkContainer.model,
+          prompt: bmPrompt.trim(),
+          enableThinking: enableThinking
+        })
+      });
+
+      if (!res.ok) {
+         const errText = await res.text();
+         setStreamOutput(`Error ${res.status}:\n${errText}`);
+         setIsStreaming(false);
+         return;
+      }
+
+      if (!res.body) return;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let done = false;
+
+      while (!done) {
+        const { value, done: readDone } = await reader.read();
+        done = readDone;
+        if (value) {
+          if (!firstTokenTime) {
+            firstTokenTime = Date.now();
+            setTtft((firstTokenTime - startTime) / 1000);
+          }
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ')) {
+              const data = trimmed.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const json = JSON.parse(data);
+                const content = json.choices?.[0]?.delta?.content;
+                const reason = json.choices?.[0]?.delta?.reasoning_content;
+                const text = content || reason;
+                if (text) {
+                  setStreamOutput(prev => prev + text);
+                  tokens++;
+                  setTokenCount(tokens);
+                }
+              } catch {
+                // Ignore parse errors from partial JSON
+              }
+            }
+          }
+        }
+      }
+      
+      if (firstTokenTime) {
+         const dTime = (Date.now() - firstTokenTime) / 1000;
+         setDecodeTime(dTime);
+         if (dTime > 0) {
+           setTps(tokens / dTime);
+         }
+      }
+
+    } catch (err) {
+      setStreamOutput(prev => prev + '\n\nRequest Failed: ' + String(err));
+    } finally {
+      setIsStreaming(false);
+    }
+  };
   const { data, error, isLoading, isValidating } = useSWR<DashboardData>('/api/metrics', fetcher, {
     refreshInterval: 2000, // Poll every 2 seconds
     revalidateOnFocus: true,
@@ -28,8 +154,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
-          <Title level={2} style={{ margin: 0 }}>VLLM Monitor</Title>
-          <Text type="secondary">Real-time local LLM inference monitoring</Text>
+          <Title level={2} style={{ margin: 0 }}>Local Container Monitor</Title>
+          <Text type="secondary">Real-time local AI inference & container monitoring</Text>
         </div>
         <div className="flex items-center gap-4">
           <Badge status={isValidating ? 'processing' : (error ? 'error' : 'success')} text={isValidating ? 'Syncing' : (error ? 'Error' : 'Live')} className="mr-2" />
@@ -51,12 +177,15 @@ export default function DashboardPage() {
             <Title level={4} style={{ marginBottom: '12px' }}><DesktopOutlined /> Host System & GPUs</Title>
             <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-3">
               <Card bordered={false} hoverable style={{ borderRadius: 16 }} styles={{ body: { padding: '14px 16px' } }} className="shadow-sm col-span-1 md:col-span-4 xl:col-span-2">
-                <Text type="secondary" className="block mb-1.5 text-sm">System</Text>
+                <div className="flex justify-between items-baseline mb-1.5">
+                  <Text type="secondary" className="block text-sm whitespace-nowrap flex-shrink-0">System</Text>
+                  <Text type="secondary" className="text-xs truncate ml-4 text-right" title={data?.system.cpuModel}>{data?.system.cpuModel}</Text>
+                </div>
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-medium text-slate-500 w-8">CPU</span>
                     <Progress percent={data?.system.cpuUsage} strokeColor="#1677ff" className="flex-grow min-w-0" showInfo={false} />
-                    <Text className="w-16 whitespace-nowrap text-right font-medium text-xs">{data?.system.cpuUsage}%</Text>
+                    <Text className="w-24 whitespace-nowrap text-right font-medium text-xs text-slate-700">{data?.system.cpuUsage}%</Text>
                   </div>
                   {data && (() => {
                     const { total, used } = data.system.memory;
@@ -65,7 +194,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-slate-500 w-8">RAM</span>
                         <Progress percent={percent} strokeColor="#ff4d4f" className="flex-grow min-w-0" showInfo={false} />
-                        <Text className="w-16 whitespace-nowrap text-right font-medium text-xs">{(used / 1024 / 1024 / 1024).toFixed(1)} GB</Text>
+                        <Text className="w-24 whitespace-nowrap text-right font-medium text-xs text-slate-700">{(used / 1024 / 1024 / 1024).toFixed(1)} / {(total / 1024 / 1024 / 1024).toFixed(0)} GB</Text>
                       </div>
                     );
                   })()}
@@ -134,6 +263,14 @@ export default function DashboardPage() {
                               )}
                             </button>
                             <Title level={5} style={{ margin: 0, color: '#0f172a' }}>{runtime.name}</Title>
+                            <Button 
+                                type="text" 
+                                size="small" 
+                                icon={<PlayCircleOutlined />} 
+                                className="ml-1 px-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50" 
+                                onClick={() => handleOpenBenchmark(runtime, modelConfig)}
+                                title="Run Benchmark"
+                            />
                             {pinnedName === runtime.name && <Tag color="blue" bordered={false} className="ml-2 !mr-0 font-medium">Pinned</Tag>}
                             {modelConfig && (modelConfig.Arch || modelConfig.Architecture) && (() => {
                                const archVal = String(modelConfig.Arch || modelConfig.Architecture);
@@ -212,6 +349,69 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <PlayCircleOutlined className="text-blue-500" />
+            <span>Benchmark: {benchmarkContainer?.name}</span>
+          </div>
+        }
+        open={isModalOpen}
+        onCancel={() => {
+           if (!isStreaming) setIsModalOpen(false);
+        }}
+        footer={null}
+        width={700}
+        destroyOnClose
+      >
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+             <Text strong className="text-slate-700">Test Prompt:</Text>
+             <Space>
+               <Text type="secondary" className="text-xs"><SettingOutlined /> Enable Thinking</Text>
+               <Switch size="small" checked={enableThinking} onChange={setEnableThinking} disabled={isStreaming} />
+             </Space>
+          </div>
+          <Input.TextArea 
+            rows={3} 
+            value={bmPrompt} 
+            onChange={e => setBmPrompt(e.target.value)} 
+            disabled={isStreaming}
+            className="bg-slate-50 mb-3"
+          />
+          <Button type="primary" onClick={startBenchmark} loading={isStreaming} block icon={<PlayCircleOutlined />}>
+             {isStreaming ? 'Running Benchmark...' : 'Start Request'}
+          </Button>
+        </div>
+
+        <Divider className="my-3 text-slate-400 text-xs text-center" style={{ fontSize: '12px' }}>Output</Divider>
+        
+        <div 
+           className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono text-sm leading-relaxed overflow-y-auto whitespace-pre-wrap h-[300px]"
+        >
+          {streamOutput || <span className="text-slate-600 italic">Waiting for request to start...</span>}
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-4 gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-medium mb-1">TTFT</span>
+            <span className="text-sm font-semibold text-slate-800">{ttft ? `${ttft.toFixed(3)} s` : '-'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-medium mb-1">Generated</span>
+            <span className="text-sm font-semibold text-slate-800">{tokenCount > 0 ? `${tokenCount} tk` : '-'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-medium mb-1">Decode Time</span>
+            <span className="text-sm font-semibold text-slate-800">{decodeTime ? `${decodeTime.toFixed(3)} s` : '-'}</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-medium mb-1">Speed</span>
+            <span className="text-sm font-semibold text-blue-600">{tps ? `${tps.toFixed(2)} tk/s` : '-'}</span>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

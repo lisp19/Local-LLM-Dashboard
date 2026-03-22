@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 export interface SystemMetrics {
   cpuUsage: number;
   cpuCores: number;
+  cpuModel: string;
   memory: {
     total: number;
     used: number;
@@ -91,6 +92,7 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
   return {
     cpuUsage: Math.round(cpuUsage * 100) / 100,
     cpuCores: currentCpus.length,
+    cpuModel: currentCpus[0]?.model || 'Unknown CPU',
     memory: {
       total: totalMem,
       used: totalMem - freeMem,
