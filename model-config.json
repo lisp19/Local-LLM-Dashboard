@@ -23,7 +23,7 @@
     "Cache_Type_V": "Q4_0",
     "Benchmark": "20Tks/s"
   },
-    "qwen3.5-4b-vulkan": {
+  "qwen3.5-4b-vulkan": {
     "Model": "Qwen3.5-4B-Claude-4.6-Opus-Distilled",
     "Served_Name": "qwen3.5-4b",
     "Backend": "llama.cpp",
@@ -33,8 +33,7 @@
     "Context": "128k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "60Tks/s",
-    "Pinned": true
+    "Benchmark": "60Tks/s"
   },
   "gemma-cpu": {
     "Model": "Gemma3-it-27B",

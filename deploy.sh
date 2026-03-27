@@ -18,6 +18,7 @@ npm run build
 
 
 # 2. Synchronizing user configuration to ~/.config/kanban...
+echo "2. Synchronizing user configuration to ~/.config/kanban..."
 REAL_USER=$(whoami)
 NODE_PATH=$(which node)
 NPM_PATH=$(which npm)
