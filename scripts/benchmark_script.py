@@ -239,7 +239,7 @@ async def main():
             print(json.dumps({
                 "type": "incremental_result",
                 "data": res
-            }))
+            }), flush=True)
         if c != levels[-1]:
             await asyncio.sleep(2)
 
@@ -249,7 +249,7 @@ async def main():
             "status": "success",
             "image": img_file,
             "report": report_data
-        }))
+        }), flush=True)
     else:
         print(json.dumps({"status": "error", "message": "No successful requests"}))
 

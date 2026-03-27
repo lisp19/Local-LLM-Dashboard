@@ -80,7 +80,9 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       send({ type: 'log', content: `Starting Python Benchmark: ${pythonPath} ${args.slice(1).join(' ')}\n` });
 
-      const child = spawn(pythonPath, args);
+      const child = spawn(pythonPath, args, {
+        env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      });
       let stdout = '';
       let buffer = '';
       child.stdout.on('data', (data) => {
