@@ -1,6 +1,7 @@
 {
   "glm-cpu": {
-    "Model": "GLM-4.7-Flash-30B-A3B",
+    "Model": "GLM-4.7-Flash-Claude-4.5-Opus-Distilled",
+    "Served_Name": "glm-4-flash",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q4_K_M",
     "Runtime": "cpu",
@@ -12,6 +13,7 @@
   },
   "gpt-cpu": {
     "Model": "GPT OSS-20B",
+    "Served_Name": "gpt-oss-20b",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q4_K_M",
     "Runtime": "cpu",
@@ -23,6 +25,7 @@
   },
   "gemma-cpu": {
     "Model": "Gemma3-it-27B",
+    "Served_Name": "gemma-3-27b",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q4_K_M",
     "Runtime": "cpu",
@@ -34,6 +37,7 @@
   },
   "gemma3-1.58": {
     "Model": "Gemma3-it-27B",
+    "Served_Name": "gemma-3-1.58",
     "Backend": "llama.cpp",
     "Quant": "GGUF_IQ1_M b1.58",
     "Runtime": "cpu",
@@ -45,6 +49,7 @@
   },
   "qw3-1.58": {
     "Model": "Qwen3-30B-A3B-Instruct",
+    "Served_Name": "qwen-3-1.58",
     "Backend": "llama.cpp",
     "Quant": "GGUF_IQ1_M b1.58",
     "Runtime": "cpu",
@@ -55,7 +60,8 @@
     "Benchmark": "15Tks/s"
   },
   "vllm_qw3": {
-    "Model": "Qwen3.5-27B-Claude-Distilled",
+    "Model": "Qwen3.5-27B-Claude-4.6-Opus-Distilled",
+    "Served_Name": "qwen3.5-27b",
     "Backend": "vLLM",
     "Quant": "GPTQ W4A16",
     "Runtime": "nvidia",
@@ -64,11 +70,11 @@
     "Cache_Type_K": "FP16",
     "Cache_Type_V": "FP16",
     "Benchmark": "45Tks/s",
-    "Pinned": true,
-    "Served_Name": "qwen3.5-27b"
+    "Pinned": true
   },
   "qwen3.5-9b-vulkan": {
-    "Model": "Qwen3.5-9B-Claude-Distilled",
+    "Model": "Qwen3.5-9B-Claude-4.6-Opus-Distilled",
+    "Served_Name": "qwen3.5-9b",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q8_0",
     "Runtime": "vulkan",
@@ -77,7 +83,6 @@
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
     "Benchmark": "30Tks/s",
-    "Pinned": true,
-    "Served_Name": "qwen3.5-9b"
+    "Pinned": true
   }
 }

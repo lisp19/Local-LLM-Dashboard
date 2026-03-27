@@ -521,8 +521,11 @@ export default function DashboardPage() {
                             </Title>
                             {modelConfig ? (
                               <Descriptions column={4} layout="vertical" bordered size="small" className="bg-white rounded-lg overflow-hidden [&_.ant-descriptions-item-content]:!text-[13px] [&_.ant-descriptions-item-label]:!w-1/4 [&_.ant-descriptions-item]:!pb-2">
+                                <Descriptions.Item label="Model" span={4} labelStyle={{ color: '#64748b', fontWeight: 500, fontSize: '12px' }}>
+                                  <span className="font-bold text-slate-800">{String(modelConfig.Model || 'Unknown')}</span>
+                                </Descriptions.Item>
                                 {Object.entries(modelConfig)
-                                  .filter(([k]) => k !== 'Arch' && k !== 'Architecture' && k !== 'Pinned' && k !== 'Served_Name')
+                                  .filter(([k]) => k !== 'Model' && k !== 'Arch' && k !== 'Architecture' && k !== 'Pinned')
                                   .map(([k, v]) => {
                                    let content: React.ReactNode = String(v);
                                      if (k === 'Runtime') {
@@ -542,9 +545,11 @@ export default function DashboardPage() {
                                      content = <Tag color={color} bordered={false} className="!m-0 font-medium">{String(v)}</Tag>;
                                    } else if (k === 'Benchmark') {
                                      content = <span className="text-[#1677ff] font-bold text-[14px] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">{String(v)}</span>;
+                                   } else if (k === 'Served_Name') {
+                                     content = <span className="font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{String(v)}</span>;
                                    }
                                    return (
-                                     <Descriptions.Item label={k} key={k} labelStyle={{ color: '#64748b', fontWeight: 500, fontSize: '12px' }}>
+                                     <Descriptions.Item label={k === 'Served_Name' ? 'Served Name' : k} key={k} labelStyle={{ color: '#64748b', fontWeight: 500, fontSize: '12px' }}>
                                        {content}
                                      </Descriptions.Item>
                                    );
@@ -608,9 +613,9 @@ export default function DashboardPage() {
                        </Text>
                        <Switch 
                          size="small" 
-                         checked={benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') ? true : enableThinking} 
+                         checked={benchmarkContainer?.backend?.toLowerCase()?.includes('vllm') ? enableThinking : true} 
                          onChange={setEnableThinking} 
-                         disabled={isStreaming || benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp')} 
+                         disabled={isStreaming || !benchmarkContainer?.backend?.toLowerCase()?.includes('vllm')} 
                        />
                      </Space>
                   </div>
