@@ -128,7 +128,7 @@ async def run_test(client, model_name, concurrency, base_prompts, runtime_type):
 
     return {
         "concurrency": concurrency,
-        "system_tps": total_tokens / total_dur if total_dur > 0 else 0,
+        "system_tps": (len(success) * 500) / total_dur if total_dur > 0 else 0,
         "avg_tps": sum(r["tps"] for r in success) / len(success),
         "avg_ttft": sum(r["ttft"] for r in success) / len(success),
         "avg_dur": sum(r["dur"] for r in success) / len(success),
