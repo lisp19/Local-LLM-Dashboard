@@ -3,6 +3,6 @@
   "_comment_model_config": "Reads model-config.json from this same directory (~/.config/kanban/), falls back to project directory",
   "openWebUIPort": 53000,
   "vllmApiKey": "vllm-test",
-  "pythonPath": "/home/lsp/anaconda3/envs/kt/bin/python",
+  "pythonPath": "/home/lsp/miniconda3/envs/kt/bin/python",
   "benchmarkPlotDir": "/home/lsp/.config/kanban/benchmarks"
 }

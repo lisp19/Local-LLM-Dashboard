@@ -104,9 +104,9 @@ async def fetch_chat(client, model_name, prompt):
 
         dur = time.time() - start
         ttft = first_token_time - start if first_token_time else 0
-        return {"success": True, "tps": token_count/dur, "ttft": ttft, "dur": dur}
+        return {"success": True, "tps": token_count/dur if dur > 0 else 0, "ttft": ttft, "dur": dur, "tokens": token_count}
     except Exception as e:
-        return {"success": False, "tps": 0, "ttft": 0, "dur": 0, "error": str(e)}
+        return {"success": False, "tps": 0, "ttft": 0, "dur": 0, "tokens": 0, "error": str(e)}
 
 async def run_test(client, model_name, concurrency, base_prompts, runtime_type):
     prompts = [base_prompts[i % len(base_prompts)] for i in range(concurrency)]
@@ -124,9 +124,11 @@ async def run_test(client, model_name, concurrency, base_prompts, runtime_type):
     success = [r for r in results if r["success"]]
     if not success: return None
 
+    total_tokens = sum(r.get("tokens", 0) for r in success)
+
     return {
         "concurrency": concurrency,
-        "system_tps": (len(success) * 500) / total_dur,
+        "system_tps": total_tokens / total_dur if total_dur > 0 else 0,
         "avg_tps": sum(r["tps"] for r in success) / len(success),
         "avg_ttft": sum(r["ttft"] for r in success) / len(success),
         "avg_dur": sum(r["dur"] for r in success) / len(success),
