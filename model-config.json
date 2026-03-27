@@ -25,7 +25,7 @@
   },
     "qwen3.5-4b-vulkan": {
     "Model": "Qwen3.5-4B-Claude-4.6-Opus-Distilled",
-    "Served_Name": "qwen3.5-9b",
+    "Served_Name": "qwen3.5-4b",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q4_K_M",
     "Runtime": "vulkan",
