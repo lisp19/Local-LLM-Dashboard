@@ -11,6 +11,7 @@ export interface SystemMetrics {
   cpuUsage: number;
   cpuCores: number;
   cpuModel: string;
+  osRelease: string;
   memory: {
     total: number;
     used: number;
@@ -91,14 +92,28 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
 
+  let osRelease = os.type() + ' ' + os.release();
+  try {
+    const { stdout } = await execFileAsync('lsb_release', ['-ds']);
+    if (stdout.trim()) osRelease = stdout.trim();
+  } catch {
+    try {
+      const content = await fs.readFile('/etc/os-release', 'utf-8');
+      const prettyName = content.match(/PRETTY_NAME="(.+)"/);
+      if (prettyName) osRelease = prettyName[1];
+    } catch {}
+  }
+
   return {
     cpuUsage: Math.round(cpuUsage * 100) / 100,
     cpuCores: currentCpus.length,
     cpuModel: currentCpus[0]?.model || 'Unknown CPU',
+    osRelease,
     memory: {
       total: totalMem,
       used: totalMem - freeMem,
-      free: freeMem    },
+      free: freeMem
+    },
   };
 }
 

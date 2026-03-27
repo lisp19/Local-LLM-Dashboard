@@ -78,6 +78,7 @@ export default function DashboardPage() {
   const [benchPrompts, setBenchPrompts] = useState(DEFAULT_BENCH_PROMPTS);
   const [benchReport, setBenchReport] = useState<BenchmarkResult[]>([]);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
+  const [benchmarkImage, setBenchmarkImage] = useState<string | null>(null);
 
   const handleOpenBenchmark = (runtime: ContainerMetrics, modelConfig: Record<string, string | number | boolean> | null) => {
     const portMatch = runtime.ports?.match(/:(\d+)->/);
@@ -202,11 +203,55 @@ export default function DashboardPage() {
     if (!benchmarkContainer?.port) return;
     
     setIsBenchmarking(true);
-    const prompts = benchPrompts.split('\n').filter(p => p.trim()).slice(0, concurrency);
+    setBenchmarkImage(null);
+    const prompts = benchPrompts.split('\n').filter(p => p.trim());
     
+    // 1. Try Python Benchmark First
+    try {
+        const pyRes = await fetch('/api/benchmark-python', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                port: benchmarkContainer.port,
+                model: benchmarkContainer.model,
+                concurrency: concurrency,
+                prompts: prompts.slice(0, 16), // Max 16 prompts for script
+                runtime: benchmarkContainer.backend?.toLowerCase()?.includes('nvidia') ? 'nvidia' : 
+                         (benchmarkContainer.backend?.toLowerCase()?.includes('rocm') || benchmarkContainer.backend?.toLowerCase()?.includes('vulkan')) ? 'amd' : 'cpu'
+            })
+        });
+
+        if (pyRes.ok) {
+            const pyData = await pyRes.json() as { 
+                status: string; 
+                image?: string; 
+                report: Array<{ concurrency: number; system_tps: number; avg_tps: number; avg_ttft: number }>;
+            };
+            if (pyData.status === 'success') {
+                const newResults: BenchmarkResult[] = pyData.report.reverse().map((r) => ({
+                    key: Date.now() + Math.random(),
+                    concurrency: r.concurrency,
+                    systemTps: r.system_tps.toFixed(2),
+                    avgTps: r.avg_tps.toFixed(2),
+                    ttft: r.avg_ttft.toFixed(3)
+                }));
+                setBenchReport(prev => [...newResults, ...prev]);
+                setBenchmarkImage(`/api/benchmark-image?filename=${pyData.image}`);
+                setIsBenchmarking(false);
+                return;
+            }
+        }
+    } catch (e) {
+        console.error('Python benchmark failed, falling back to frontend logic:', e);
+    }
+
+    // 2. Fallback to existing frontend logic
+    const activePrompts = prompts.slice(0, concurrency);
     const startTimeInner = Date.now();
+    const portFixed = benchmarkContainer.port;
+    const modelFixed = benchmarkContainer.model;
     
-    const tasks = prompts.map(async (p) => {
+    const tasks = activePrompts.map(async (p: string) => {
         const sTime = Date.now();
         let fTokenTime: number | null = null;
         let tks = 0;
@@ -215,8 +260,8 @@ export default function DashboardPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    port: benchmarkContainer.port,
-                    model: benchmarkContainer.model,
+                    port: portFixed,
+                    model: modelFixed,
                     prompt: p.trim(),
                     enableThinking: false
                 })
@@ -261,10 +306,14 @@ export default function DashboardPage() {
     const results = await Promise.all(tasks);
     const totalDuration = (Date.now() - startTimeInner) / 1000;
     
-    const success = results.filter(r => r.success && r.tokens !== undefined);
-    const systemTps = success.reduce((acc, r) => acc + (r.tokens || 0), 0) / totalDuration;
-    const avgTps = success.length > 0 ? success.reduce((acc, r) => acc + (r.tps || 0), 0) / success.length : 0;
-    const avgTtft = success.length > 0 ? success.reduce((acc, r) => acc + (r.ttft || 0), 0) / success.length : 0;
+    interface TaskResultSuccess { success: true; tps: number; ttft: number; dur: number; tokens: number }
+    interface TaskResultFailure { success: false }
+    type TaskResult = TaskResultSuccess | TaskResultFailure;
+
+    const success = (results as TaskResult[]).filter((r): r is TaskResultSuccess => r.success);
+    const systemTps = success.reduce((acc: number, r: TaskResultSuccess) => acc + r.tokens, 0) / totalDuration;
+    const avgTps = success.length > 0 ? success.reduce((acc: number, r: TaskResultSuccess) => acc + r.tps, 0) / success.length : 0;
+    const avgTtft = success.length > 0 ? success.reduce((acc: number, r: TaskResultSuccess) => acc + r.ttft, 0) / success.length : 0;
 
     const newResult: BenchmarkResult = {
         key: Date.now(),
@@ -732,10 +781,23 @@ export default function DashboardPage() {
                       { title: 'Avg TPS', dataIndex: 'avgTps', key: 'avgTps' },
                       { title: 'TTFT (s)', dataIndex: 'ttft', key: 'ttft' },
                     ]}
-                    pagination={false}
+                    pagination={{ pageSize: 5 }}
                     className="border border-slate-200 rounded-lg overflow-hidden"
                     locale={{ emptyText: 'No benchmark results yet' }}
                 />
+                
+                {benchmarkImage && (
+                  <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                      <Text strong className="text-xs text-slate-600"><BarChartOutlined /> Performance Analysis Plot</Text>
+                      <Button size="small" type="text" onClick={() => window.open(benchmarkImage, '_blank')}>View Full</Button>
+                    </div>
+                    <div className="p-2 flex justify-center bg-slate-100">
+                      <img src={benchmarkImage} alt="Benchmark Plot" className="max-w-full h-auto rounded shadow-sm" style={{ maxHeight: '400px' }} />
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-3 bg-orange-50 p-2 rounded border border-orange-100">
                     <Text type="secondary" className="text-[11px]">
                       <InfoCircleOutlined className="mr-1" />
