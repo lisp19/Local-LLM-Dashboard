@@ -1,7 +1,7 @@
 {
   "glm-cpu": {
-    "Model": "GLM-4.7-Flash-Claude-4.5-Opus-Distilled",
-    "Served_Name": "glm-4-flash",
+    "Model": "GLM-4.7-Flash-30B-A3B-Claude-4.5-Opus-Distilled",
+    "Served_Name": "glm-4.7-flash",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q4_K_M",
     "Runtime": "cpu",
@@ -25,7 +25,7 @@
   },
   "gemma-cpu": {
     "Model": "Gemma3-it-27B",
-    "Served_Name": "gemma-3-27b",
+    "Served_Name": "gemma3-27b",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q4_K_M",
     "Runtime": "cpu",
@@ -36,8 +36,8 @@
     "Benchmark": "5Tks/s"
   },
   "gemma3-1.58": {
-    "Model": "Gemma3-it-27B",
-    "Served_Name": "gemma-3-1.58",
+    "Model": "Gemma3-it-27B 1.58bit",
+    "Served_Name": "gemma327b-",
     "Backend": "llama.cpp",
     "Quant": "GGUF_IQ1_M b1.58",
     "Runtime": "cpu",
@@ -48,8 +48,8 @@
     "Benchmark": "5Tks/s"
   },
   "qw3-1.58": {
-    "Model": "Qwen3-30B-A3B-Instruct",
-    "Served_Name": "qwen-3-1.58",
+    "Model": "Qwen3-30B-A3B-Instruct 1.58bit",
+    "Served_Name": "qwen3-30b-a3b",
     "Backend": "llama.cpp",
     "Quant": "GGUF_IQ1_M b1.58",
     "Runtime": "cpu",
