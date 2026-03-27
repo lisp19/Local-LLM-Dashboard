@@ -38,7 +38,7 @@ User=$REAL_USER
 WorkingDirectory=$WORK_DIR
 Environment=NODE_ENV=production
 Environment=PORT=3000
-Environment=PATH=$(dirname $NODE_PATH):/usr/bin:/bin
+Environment=PATH=$(dirname $NODE_PATH):/usr/local/bin:/usr/bin:/bin:/opt/rocm/bin
 ExecStart=$NPM_PATH run start
 Restart=on-failure
 RestartSec=10

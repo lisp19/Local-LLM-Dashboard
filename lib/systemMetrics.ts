@@ -1,4 +1,6 @@
 import * as os from 'os';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { loadModelConfig } from './appConfig';
@@ -96,9 +98,23 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
     memory: {
       total: totalMem,
       used: totalMem - freeMem,
-      free: freeMem,
-    },
+      free: freeMem    },
   };
+}
+
+async function findBinary(name: string, extraPaths: string[] = []): Promise<string> {
+  const paths = [...extraPaths, '/usr/local/bin', '/usr/bin', '/bin'];
+  for (const p of paths) {
+    const fullPath = path.join(p, name);
+    try {
+      await fs.access(fullPath);
+      return fullPath;
+    } catch {
+      // Continue
+    }
+  }
+  // Fallback to searching in current PATH
+  return name;
 }
 
 // GPU Metrics
@@ -107,7 +123,8 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
 
   // 1. Try NVIDIA GPUs
   try {
-    const { stdout } = await execFileAsync('nvidia-smi', [
+    const nvidiaSmi = await findBinary('nvidia-smi');
+    const { stdout } = await execFileAsync(nvidiaSmi, [
       '--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
       '--format=csv,noheader,nounits'
     ]);
@@ -134,12 +151,13 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
 
   // 2. Try AMD GPUs (ROCm)
   try {
+    const rocmSmi = await findBinary('rocm-smi', ['/opt/rocm/bin']);
     // Get basic stats and names
-    const { stdout: rocmStdout } = await execFileAsync('rocm-smi', ['-a', '--json']);
+    const { stdout: rocmStdout } = await execFileAsync(rocmSmi, ['-a', '--json']);
     const rocmData = JSON.parse(rocmStdout);
     
     // Get precise memory info separately as it's more reliable
-    const { stdout: memStdout } = await execFileAsync('rocm-smi', ['--showmeminfo', 'vram', '--json']);
+    const { stdout: memStdout } = await execFileAsync(rocmSmi, ['--showmeminfo', 'vram', '--json']);
     const memData = JSON.parse(memStdout);
 
     Object.keys(rocmData).forEach(key => {

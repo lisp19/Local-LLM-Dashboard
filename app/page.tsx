@@ -198,34 +198,41 @@ export default function DashboardPage() {
           {/* System & Global Metrics */}
           <div>
             <Title level={4} style={{ marginBottom: '12px' }}><DesktopOutlined /> Host System & GPUs</Title>
-            <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-6 gap-3">
-              <Card bordered={false} hoverable style={{ borderRadius: 16 }} styles={{ body: { padding: '14px 16px' } }} className="shadow-sm col-span-1 md:col-span-4 xl:col-span-2">
-                <div className="flex justify-between items-baseline mb-1.5">
-                  <Text type="secondary" className="block text-sm whitespace-nowrap flex-shrink-0">System</Text>
-                  <Text type="secondary" className="text-xs truncate ml-4 text-right" title={data?.system.cpuModel}>{data?.system.cpuModel}</Text>
+            {/* System Header Bar */}
+            <Card bordered={false} className="shadow-sm mb-4 bg-slate-50/50" style={{ borderRadius: 12 }} styles={{ body: { padding: '8px 16px' } }}>
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                <div className="flex items-center gap-2 min-w-[200px] flex-1">
+                  <DesktopOutlined className="text-blue-500" />
+                  <Text strong className="text-xs uppercase tracking-wider text-slate-500">Host</Text>
+                  <Text className="text-xs font-medium truncate" title={data?.system.cpuModel}>{data?.system.cpuModel}</Text>
                 </div>
-                <div className="space-y-2.5">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-slate-500 w-8">CPU</span>
-                    <Progress percent={data?.system.cpuUsage} strokeColor="#1677ff" className="flex-grow min-w-0" showInfo={false} />
-                    <Text className="w-24 whitespace-nowrap text-right font-medium text-xs text-slate-700">{data?.system.cpuUsage}%</Text>
-                  </div>
-                  {data && (() => {
-                    const { total, used } = data.system.memory;
-                    const percent = Math.round((used / total) * 100);
-                    return (
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-slate-500 w-8">RAM</span>
-                        <Progress percent={percent} strokeColor="#ff4d4f" className="flex-grow min-w-0" showInfo={false} />
-                        <Text className="w-24 whitespace-nowrap text-right font-medium text-xs text-slate-700">{(used / 1024 / 1024 / 1024).toFixed(1)} / {(total / 1024 / 1024 / 1024).toFixed(0)} GB</Text>
-                      </div>
-                    );
-                  })()}
+                
+                <div className="flex items-center gap-3 min-w-[240px] flex-1">
+                  <Text className="text-[11px] font-bold text-slate-400 w-8">CPU</Text>
+                  <Progress percent={data?.system.cpuUsage} strokeColor="#1677ff" className="flex-grow shrink-0" showInfo={false} size={[100, 8]} />
+                  <Text className="text-xs font-mono w-12 text-right">{data?.system.cpuUsage}%</Text>
                 </div>
-              </Card>
+
+                {data && (() => {
+                  const { total, used } = data.system.memory;
+                  const percent = Math.round((used / total) * 100);
+                  return (
+                    <div className="flex items-center gap-3 min-w-[280px] flex-1">
+                      <Text className="text-[11px] font-bold text-slate-400 w-8">RAM</Text>
+                      <Progress percent={percent} strokeColor="#ff4d4f" className="flex-grow shrink-0" showInfo={false} size={[100, 8]} />
+                      <Text className="text-xs font-mono whitespace-nowrap w-24 text-right">
+                        {(used / 1024 / 1024 / 1024).toFixed(1)} / {(total / 1024 / 1024 / 1024).toFixed(0)} GB
+                      </Text>
+                    </div>
+                  );
+                })()}
+              </div>
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               
               {data?.gpus.map((gpu) => (
-                <Card key={gpu.id} bordered={false} hoverable style={{ borderRadius: 16 }} styles={{ body: { padding: '14px 16px' } }} className="shadow-sm col-span-1 md:col-span-2 xl:col-span-2">
+                <Card key={gpu.id} bordered={false} hoverable style={{ borderRadius: 16 }} styles={{ body: { padding: '14px 16px' } }} className="shadow-sm col-span-1">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1 mr-2 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -237,11 +244,11 @@ export default function DashboardPage() {
                         >
                           {gpu.type}
                         </Tag>
-                        <Text type="secondary" className="font-semibold break-words text-sm leading-tight truncate" title={gpu.name}>
+                        <Text type="secondary" className="font-semibold break-words text-sm leading-tight" title={gpu.name}>
                           GPU {gpu.id}
                         </Text>
                       </div>
-                      <Text className="text-[11px] text-slate-400 block truncate" title={gpu.name}>{gpu.name}</Text>
+                      <Text className="text-[11px] text-slate-400 block whitespace-normal break-words" title={gpu.name}>{gpu.name}</Text>
                     </div>
                     <div className="flex items-center justify-end gap-1.5 flex-shrink-0 pt-0.5">
                       <Tag color="geekblue" bordered={false} className="!m-0 font-medium text-[11px]">{gpu.temperature}</Tag>
