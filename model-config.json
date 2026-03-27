@@ -23,6 +23,19 @@
     "Cache_Type_V": "Q4_0",
     "Benchmark": "20Tks/s"
   },
+    "qwen3.5-4b-vulkan": {
+    "Model": "Qwen3.5-4B-Claude-4.6-Opus-Distilled",
+    "Served_Name": "qwen3.5-9b",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_Q4_K_M",
+    "Runtime": "vulkan",
+    "Arch": "Dense",
+    "Context": "128k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "60Tks/s",
+    "Pinned": true
+  },
   "gemma-cpu": {
     "Model": "Gemma3-it-27B",
     "Served_Name": "gemma3-27b",
@@ -79,10 +92,10 @@
     "Quant": "GGUF_Q8_0",
     "Runtime": "vulkan",
     "Arch": "Dense",
-    "Context": "128k",
+    "Context": "192k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "30Tks/s",
+    "Benchmark": "40Tks/s",
     "Pinned": true
   }
 }
