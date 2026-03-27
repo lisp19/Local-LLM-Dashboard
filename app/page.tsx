@@ -196,18 +196,18 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* System & Global Metrics */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center gap-2 px-1">
               <DesktopOutlined className="text-slate-400" />
               <Title level={5} style={{ margin: 0, fontSize: '14px' }}>Host System & GPUs</Title>
             </div>
 
             {/* System Header Bar */}
-            <Card bordered={false} className="shadow-sm bg-slate-50/50" style={{ borderRadius: 12 }} styles={{ body: { padding: '12px 20px' } }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 items-center gap-y-4 gap-x-8">
+            <Card bordered={false} className="shadow-sm bg-slate-50/50" style={{ borderRadius: 12 }} styles={{ body: { padding: '12px 24px' } }}>
+              <div className="flex flex-col lg:flex-row items-center gap-4 lg:gap-0">
                 {/* Host Info */}
-                <div className="lg:col-span-3 flex items-center gap-3 overflow-hidden">
-                  <div className="bg-blue-100 p-1.5 rounded-lg flex-shrink-0">
+                <div className="flex items-center gap-3 overflow-hidden flex-shrink-0 w-full lg:w-[25%] lg:pr-6">
+                  <div className="bg-blue-100 p-2 rounded-lg flex-shrink-0">
                     <DesktopOutlined className="text-blue-600 text-base" />
                   </div>
                   <div className="min-w-0">
@@ -215,27 +215,33 @@ export default function DashboardPage() {
                     <Text className="text-sm font-semibold truncate block leading-tight text-slate-700" title={data?.system.cpuModel}>{data?.system.cpuModel}</Text>
                   </div>
                 </div>
+
+                {/* Vertical Divider */}
+                <div className="hidden lg:block w-[1px] h-8 bg-slate-200 mx-0 flex-shrink-0"></div>
                 
                 {/* CPU Metric */}
-                <div className="lg:col-span-4 flex items-center gap-3">
-                  <Text className="text-[10px] font-bold text-slate-400 w-8 flex-shrink-0">CPU</Text>
-                  <div className="flex-grow min-w-0 mt-1">
+                <div className="flex items-center gap-4 flex-1 w-full lg:px-8">
+                  <Text className="text-[10px] font-bold text-slate-400 whitespace-nowrap flex-shrink-0">CPU</Text>
+                  <div className="flex-grow min-w-0">
                     <Progress percent={data?.system.cpuUsage} strokeColor="#1677ff" showInfo={false} size="small" className="mb-0" />
                   </div>
-                  <Text className="text-xs font-mono w-12 text-right flex-shrink-0">{data?.system.cpuUsage}%</Text>
+                  <Text className="text-xs font-mono w-12 text-right flex-shrink-0 text-slate-600">{data?.system.cpuUsage}%</Text>
                 </div>
+
+                {/* Vertical Divider */}
+                <div className="hidden lg:block w-[1px] h-8 bg-slate-200 mx-0 flex-shrink-0"></div>
 
                 {/* RAM Metric */}
                 {data && (() => {
                   const { total, used } = data.system.memory;
                   const percent = Math.round((used / total) * 100);
                   return (
-                    <div className="lg:col-span-5 flex items-center gap-3">
-                      <Text className="text-[10px] font-bold text-slate-400 w-8 flex-shrink-0">RAM</Text>
-                      <div className="flex-grow min-w-0 mt-1">
+                    <div className="flex items-center gap-4 flex-[1.2] w-full lg:pl-8">
+                      <Text className="text-[10px] font-bold text-slate-400 whitespace-nowrap flex-shrink-0">RAM</Text>
+                      <div className="flex-grow min-w-0">
                         <Progress percent={percent} strokeColor="#ff4d4f" showInfo={false} size="small" className="mb-0" />
                       </div>
-                      <Text className="text-xs font-mono whitespace-nowrap w-24 text-right flex-shrink-0">
+                      <Text className="text-xs font-mono whitespace-nowrap w-28 text-right flex-shrink-0 text-slate-600">
                         {(used / 1024 / 1024 / 1024).toFixed(1)} / {(total / 1024 / 1024 / 1024).toFixed(0)} GB
                       </Text>
                     </div>
@@ -244,7 +250,7 @@ export default function DashboardPage() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
               
               {data?.gpus.map((gpu) => (
                 <Card key={gpu.id} bordered={false} hoverable style={{ borderRadius: 16 }} styles={{ body: { padding: '14px 16px' } }} className="shadow-sm col-span-1">
