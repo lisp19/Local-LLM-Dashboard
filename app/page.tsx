@@ -405,7 +405,7 @@ export default function DashboardPage() {
                             {modelConfig ? (
                               <Descriptions column={4} layout="vertical" bordered size="small" className="bg-white rounded-lg overflow-hidden [&_.ant-descriptions-item-content]:!text-[13px] [&_.ant-descriptions-item-label]:!w-1/4 [&_.ant-descriptions-item]:!pb-2">
                                 {Object.entries(modelConfig)
-                                  .filter(([k]) => k !== 'Arch' && k !== 'Architecture' && k !== 'Pinned')
+                                  .filter(([k]) => k !== 'Arch' && k !== 'Architecture' && k !== 'Pinned' && k !== 'Served_Name')
                                   .map(([k, v]) => {
                                    let content: React.ReactNode = String(v);
                                      if (k === 'Runtime') {
