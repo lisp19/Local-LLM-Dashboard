@@ -67,16 +67,16 @@
     "Pinned": true,
     "Served_Name": "qwen3.5-27b"
   },
-  "qwen3.5-9b-rocm": {
+  "qwen3.5-9b-vulkan": {
     "Model": "Qwen3.5-9B-Claude-Distilled",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q8_0",
-    "Runtime": "rocm",
+    "Runtime": "vulkan",
     "Arch": "Dense",
     "Context": "128k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "35Tks/s",
+    "Benchmark": "30Tks/s",
     "Pinned": true,
     "Served_Name": "qwen3.5-9b"
   }
