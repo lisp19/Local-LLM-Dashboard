@@ -20,6 +20,7 @@ interface BenchmarkContainer {
   model: string;
   servedName: string;
   backend: string;
+  runtime: string;
 }
 
 const DEFAULT_BENCH_PROMPTS = [
@@ -93,7 +94,8 @@ export default function DashboardPage() {
       port: port,
       model: String(modelConfig?.Model || runtime.name),
       servedName: String(modelConfig?.Served_Name || modelConfig?.Model || runtime.name),
-      backend: String(modelConfig?.Backend || 'unknown')
+      backend: String(modelConfig?.Backend || 'unknown'),
+      runtime: String(modelConfig?.Runtime || 'cpu').toLowerCase()
     });
     setReasoningOutput('');
     setStreamOutput('');
@@ -225,8 +227,7 @@ export default function DashboardPage() {
                 model: benchmarkContainer.servedName,
                 concurrency: concurrency,
                 prompts: prompts.slice(0, 16),
-                runtime: benchmarkContainer.backend?.toLowerCase()?.includes('nvidia') ? 'nvidia' : 
-                         (benchmarkContainer.backend?.toLowerCase()?.includes('rocm') || benchmarkContainer.backend?.toLowerCase()?.includes('vulkan')) ? 'amd' : 'cpu'
+                runtime: benchmarkContainer.runtime
             })
         });
 

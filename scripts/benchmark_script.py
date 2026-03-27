@@ -55,8 +55,12 @@ async def monitor_resources(stop_event, stats_result, runtime_type="nvidia"):
                 if smi_lines and smi_lines[0]:
                     g_utils = [float(line.split(',')[0]) for line in smi_lines if line.strip()]
                     v_used = [float(line.split(',')[1]) for line in smi_lines if line.strip()]
-                    gpu_util_records.append(sum(g_utils) / len(g_utils))
-                    vram_mib_records.append(sum(v_used))
+                    avg_gpu = sum(g_utils) / len(g_utils)
+                    if avg_gpu >= 50.0:  # Only record during active inference, ignore idle
+                        gpu_util_records.append(avg_gpu)
+                        vram_mib_records.append(sum(v_used))
+                        if curr_cpu: cpu_records.append(curr_cpu)
+                        if curr_mem: mem_records.append(curr_mem)
             elif runtime_type == "amd":
                 # Basic rocm-smi parsing
                 proc_smi = await asyncio.create_subprocess_shell(
