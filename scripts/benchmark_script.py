@@ -91,11 +91,7 @@ async def fetch_chat(client, model_name, prompt):
     try:
         response = await client.chat.completions.create(
             model=model_name, messages=[{"role": "user", "content": prompt}],
-            stream=True, max_tokens=500, stream_options={"include_usage": True},
-            extra_body={
-                "chat_template_kwargs": {"enable_thinking": False},
-                "disable_thinking": True
-            }
+            stream=True, max_tokens=500, stream_options={"include_usage": True}
         )
         async for chunk in response:
             if first_token_time is None and chunk.choices and chunk.choices[0].delta.content:
@@ -106,6 +102,8 @@ async def fetch_chat(client, model_name, prompt):
         ttft = first_token_time - start if first_token_time else 0
         return {"success": True, "tps": token_count/dur if dur > 0 else 0, "ttft": ttft, "dur": dur, "tokens": token_count}
     except Exception as e:
+        import sys
+        print(f"[fetch_chat ERROR] {type(e).__name__}: {e}", file=sys.stderr)
         return {"success": False, "tps": 0, "ttft": 0, "dur": 0, "tokens": 0, "error": str(e)}
 
 async def run_test(client, model_name, concurrency, base_prompts, runtime_type):
