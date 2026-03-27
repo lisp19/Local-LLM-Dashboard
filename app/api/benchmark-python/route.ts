@@ -82,11 +82,27 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       const child = spawn(pythonPath, args);
       let stdout = '';
-
+      let buffer = '';
       child.stdout.on('data', (data) => {
         const str = data.toString();
         stdout += str;
         send({ type: 'log', content: str });
+
+        // Parse lines for incremental results
+        buffer += str;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          try {
+            const json = JSON.parse(line);
+            if (json && json.type === 'incremental_result') {
+              send({ type: 'incremental_result', data: json.data });
+            }
+          } catch {
+            // Ignore non-JSON or partial JSON lines
+          }
+        }
       });
 
       child.stderr.on('data', (data) => {

@@ -233,7 +233,13 @@ async def main():
     report_data = []
     for c in levels:
         res = await run_test(client, args.model_name, c, base_prompts, runtime_type)
-        if res: report_data.append(res)
+        if res:
+            report_data.append(res)
+            # Print intermediate result for real-time frontend update
+            print(json.dumps({
+                "type": "incremental_result",
+                "data": res
+            }))
         if c != levels[-1]:
             await asyncio.sleep(2)
 

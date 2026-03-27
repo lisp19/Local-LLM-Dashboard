@@ -256,17 +256,35 @@ export default function DashboardPage() {
                     if (line.startsWith('data: ')) {
                         try {
                             const packet = JSON.parse(line.slice(6)) as { 
-                                type: 'log' | 'result' | 'error'; 
+                                type: 'log' | 'result' | 'error' | 'incremental_result'; 
                                 content?: string; 
                                 data?: { 
                                     status: string; 
                                     image?: string; 
                                     report: Array<{ concurrency: number; system_tps: number; avg_tps: number; avg_ttft: number }>;
+                                    concurrency?: number;
+                                    system_tps?: number;
+                                    avg_tps?: number;
+                                    avg_ttft?: number;
                                 }; 
                                 message?: string; 
                             };
                             if (packet.type === 'log' && packet.content) {
                                 setBenchmarkLogs(prev => prev + packet.content);
+                            } else if (packet.type === 'incremental_result' && packet.data) {
+                                const r = packet.data;
+                                const newResult: BenchmarkResult = {
+                                    key: Date.now() + Math.random(),
+                                    concurrency: r.concurrency || 0,
+                                    systemTps: (r.system_tps || 0).toFixed(2),
+                                    avgTps: (r.avg_tps || 0).toFixed(2),
+                                    ttft: (r.avg_ttft || 0).toFixed(3)
+                                };
+                                const containerId = benchmarkContainer?.id || 'default';
+                                setAllReports(prev => ({
+                                    ...prev,
+                                    [containerId]: [newResult, ...(prev[containerId] || [])]
+                                }));
                             } else if (packet.type === 'result' && packet.data) {
                                 resultData = packet.data;
                             } else if (packet.type === 'error') {
@@ -280,23 +298,7 @@ export default function DashboardPage() {
             }
 
             if (resultData && resultData.status === 'success') {
-                const newResults: BenchmarkResult[] = (resultData.report as Array<{
-                    concurrency: number;
-                    system_tps: number;
-                    avg_tps: number;
-                    avg_ttft: number;
-                }>).reverse().map((r) => ({
-                    key: Date.now() + Math.random(),
-                    concurrency: r.concurrency,
-                    systemTps: r.system_tps.toFixed(2),
-                    avgTps: r.avg_tps.toFixed(2),
-                    ttft: r.avg_ttft.toFixed(3)
-                }));
                 const containerId = benchmarkContainer?.id || 'default';
-                setAllReports(prev => ({
-                    ...prev,
-                    [containerId]: [...newResults, ...(prev[containerId] || [])]
-                }));
                 const imageUrl = `/api/benchmark-image?filename=${resultData.image}`;
                 setAllImages(prev => ({ ...prev, [containerId]: imageUrl }));
                 setIsBenchmarking(false);
