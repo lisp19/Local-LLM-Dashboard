@@ -35,11 +35,14 @@ export async function POST(req: NextRequest): Promise<Response> {
   const osInfo = dashboardData.system.osRelease || 'Linux';
   
   let gpuInfo = '';
-  const gpus = dashboardData.gpus || [];
+  const gpus = (dashboardData.gpus || []).filter(g => {
+    const name = g.name.toLowerCase();
+    if (runtime === 'nvidia') return name.includes('nvidia') || name.includes('geforce') || name.includes('quadro') || name.includes('tesla') || name.includes('rtx');
+    if (runtime === 'rocm' || runtime === 'vulkan') return name.includes('amd') || name.includes('ati') || name.includes('radeon');
+    return false;
+  });
   const runtimeType = runtime === 'nvidia' ? 'nvidia' : (runtime === 'amd' ? 'amd' : 'cpu');
-  if (runtime === 'nvidia' && gpus.length > 0) {
-    gpuInfo = `${gpus.length}x ${gpus[0].name} (${gpus[0].memoryTotal})`;
-  } else if ((runtime === 'rocm' || runtime === 'vulkan') && gpus.length > 0) {
+  if (gpus.length > 0) {
     gpuInfo = `${gpus.length}x ${gpus[0].name} (${gpus[0].memoryTotal})`;
   }
 

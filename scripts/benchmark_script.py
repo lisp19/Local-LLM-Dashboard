@@ -156,8 +156,11 @@ def draw_final_report(report, model_name, cpu_info, gpu_info, os_info, output_di
 
     ax1 = fig.add_subplot(gs[0])
     main_title = f"Benchmark: {model_name} (500 Tokens/Req)"
-    subtitle = f"CPU: {cpu_info} | GPU: {gpu_info} | OS: {os_info}"
-    ax1.set_title(f"{main_title}\n{subtitle}", fontsize=14, pad=20, fontweight='bold')
+    subtitle_cpu = f"CPU: {cpu_info}"
+    subtitle_gpu_os = f"GPU: {gpu_info} | OS: {os_info}"
+    
+    full_title = f"{main_title}\n{subtitle_cpu}\n{subtitle_gpu_os}"
+    ax1.set_title(full_title, fontsize=13, pad=35, fontweight='bold')
 
     ax1.set_ylabel('TPS (Tokens/s)', color='#1f77b4', fontsize=12, fontweight='bold')
     lns1 = ax1.plot(labels, sys_tps, marker='o', color='#1f77b4', linewidth=3, label='System Total TPS')
@@ -205,6 +208,8 @@ def draw_final_report(report, model_name, cpu_info, gpu_info, os_info, output_di
             cell.set_facecolor('#333333')
 
     plt.tight_layout()
+    # Ensure there is enough space for the title
+    plt.subplots_adjust(top=0.88)
     plt.savefig(filepath, dpi=150)
     return filename
 
