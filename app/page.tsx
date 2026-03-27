@@ -78,9 +78,9 @@ export default function DashboardPage() {
   // Concurrency Benchmark State
   const [concurrency, setConcurrency] = useState(1);
   const [benchPrompts, setBenchPrompts] = useState(DEFAULT_BENCH_PROMPTS);
-  const [benchReport, setBenchReport] = useState<BenchmarkResult[]>([]);
+  const [allReports, setAllReports] = useState<Record<string, BenchmarkResult[]>>({});
   const [isBenchmarking, setIsBenchmarking] = useState(false);
-  const [benchmarkImage, setBenchmarkImage] = useState<string | null>(null);
+  const [allImages, setAllImages] = useState<Record<string, string | null>>({});
   const [benchmarkMode, setBenchmarkMode] = useState<'python' | 'frontend' | null>(null);
   const [benchmarkLogs, setBenchmarkLogs] = useState('');
 
@@ -211,7 +211,9 @@ export default function DashboardPage() {
     if (!benchmarkContainer?.port) return;
     
     setIsBenchmarking(true);
-    setBenchmarkImage(null);
+    if (benchmarkContainer?.id) {
+        setAllImages(prev => ({ ...prev, [benchmarkContainer.id]: null }));
+    }
     setBenchmarkLogs('');
     setBenchmarkMode(null);
     const prompts = benchPrompts.split('\n').filter(p => p.trim());
@@ -290,8 +292,13 @@ export default function DashboardPage() {
                     avgTps: r.avg_tps.toFixed(2),
                     ttft: r.avg_ttft.toFixed(3)
                 }));
-                setBenchReport(prev => [...newResults, ...prev]);
-                setBenchmarkImage(`/api/benchmark-image?filename=${resultData.image}`);
+                const containerId = benchmarkContainer?.id || 'default';
+                setAllReports(prev => ({
+                    ...prev,
+                    [containerId]: [...newResults, ...(prev[containerId] || [])]
+                }));
+                const imageUrl = `/api/benchmark-image?filename=${resultData.image}`;
+                setAllImages(prev => ({ ...prev, [containerId]: imageUrl }));
                 setIsBenchmarking(false);
                 return;
             }
@@ -380,7 +387,11 @@ export default function DashboardPage() {
         ttft: avgTtft.toFixed(3)
     };
 
-    setBenchReport(prev => [newResult, ...prev]);
+    const containerId = benchmarkContainer?.id || 'default';
+    setAllReports(prev => ({
+        ...prev,
+        [containerId]: [newResult, ...(prev[containerId] || [])]
+    }));
     setIsBenchmarking(false);
   };
 
@@ -853,11 +864,13 @@ export default function DashboardPage() {
 
                 <div className="mb-2 flex justify-between items-center">
                    <Text strong><BarChartOutlined /> Result History</Text>
-                   {benchReport.length > 0 && <Button size="small" onClick={() => setBenchReport([])}>Clear</Button>}
+                   {benchmarkContainer && (allReports[benchmarkContainer.id]?.length > 0) && (
+                     <Button size="small" onClick={() => setAllReports(prev => ({ ...prev, [benchmarkContainer.id]: [] }))}>Clear</Button>
+                   )}
                 </div>
                 <Table 
                     size="small"
-                    dataSource={benchReport}
+                    dataSource={benchmarkContainer ? (allReports[benchmarkContainer.id] || []) : []}
                     columns={[
                       { title: 'Concur (N)', dataIndex: 'concurrency', key: 'concurrency', width: 120 },
                       { title: 'Sys Total TPS', dataIndex: 'systemTps', key: 'systemTps', render: (val) => <Text strong className="text-blue-600">{val}</Text> },
@@ -869,14 +882,14 @@ export default function DashboardPage() {
                     locale={{ emptyText: 'No benchmark results yet' }}
                 />
                 
-                {benchmarkImage && (
+                {benchmarkContainer && allImages[benchmarkContainer.id] && (
                   <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
                     <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                       <Text strong className="text-xs text-slate-600"><BarChartOutlined /> Performance Analysis Plot</Text>
-                      <Button size="small" type="text" onClick={() => window.open(benchmarkImage, '_blank')}>View Full</Button>
+                      <Button size="small" type="text" onClick={() => window.open(allImages[benchmarkContainer.id] || '', '_blank')}>View Full</Button>
                     </div>
                     <div className="p-2 flex justify-center bg-slate-100">
-                      <img src={benchmarkImage} alt="Benchmark Plot" className="max-w-full h-auto rounded shadow-sm" style={{ maxHeight: '400px' }} />
+                      <img src={allImages[benchmarkContainer.id] || ''} alt="Benchmark Plot" className="max-w-full h-auto rounded shadow-sm" style={{ maxHeight: '400px' }} />
                     </div>
                   </div>
                 )}
