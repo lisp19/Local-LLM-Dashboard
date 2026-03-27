@@ -16,12 +16,23 @@ echo "1. Building the Next.js production bundle..."
 npm install
 npm run build
 
-echo "2. Setting up Systemd daemon..."
-SERVICE_FILE="/etc/systemd/system/vllm-dashboard.service"
+
+# 2. Synchronizing user configuration to ~/.config/kanban...
 REAL_USER=$(whoami)
 NODE_PATH=$(which node)
 NPM_PATH=$(which npm)
 WORK_DIR=$(pwd)
+USER_CONFIG_DIR="$HOME/.config/kanban"
+mkdir -p "$USER_CONFIG_DIR"
+# Copy model config
+cp "$WORK_DIR/model-config.json" "$USER_CONFIG_DIR/model-config.json"
+# Copy app config if config.json doesn't exist
+if [ ! -f "$USER_CONFIG_DIR/config.json" ]; then
+  cp "$WORK_DIR/config.default.json" "$USER_CONFIG_DIR/config.json"
+fi
+
+echo "3. Setting up Systemd daemon..."
+SERVICE_FILE="/etc/systemd/system/vllm-dashboard.service"
 
 echo "Requesting sudo privileges to install $SERVICE_FILE..."
 
