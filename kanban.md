@@ -88,7 +88,7 @@ Wants=network-online.target[Service]
 Type=simple
 # 建议由特定具备 docker 权限的用户运行，避免直接使用 root
 User=your_username
-WorkingDirectory=/opt/vllm-monitor-dashboard
+WorkingDirectory=~/kanban
 Environment=NODE_ENV=production
 Environment=PORT=3000
 # 启动 Next.js 生产环境
