@@ -1,15 +1,51 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip } from 'antd';
+import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
 import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined } from '@ant-design/icons';
-import type { DashboardData } from '../lib/systemMetrics';
+import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
+
+interface BenchmarkResult {
+  key: number;
+  concurrency: number;
+  systemTps: string;
+  avgTps: string;
+  ttft: string;
+}
+
+interface BenchmarkContainer {
+  id: string;
+  name: string;
+  port: string | null;
+  model: string;
+  backend: string;
+}
+
+const DEFAULT_BENCH_PROMPTS = [
+  "Tell me about yourself in 1000 words.",
+  "Write a 1000-word essay on high school students in the AI era.",
+  "Explain NVLink technology in detail within 1000 words.",
+  "Compare pasta and rice for weight loss in 1000 words.",
+  "Write a sci-fi short story (1000 words) about landing on Europa.",
+  "Explain Quantum Entanglement and its use in 1000 words.",
+  "A 1000-word guide for college graduates on job interviews.",
+  "Analyze the root causes of the 2008 financial crisis in 1000 words.",
+  "Write a 1000-word travelogue about a road trip in Iceland.",
+  "Compare Python and C++ memory management in 1000 words.",
+  "Discuss Stoicism's core ideas and modern relevance in 1000 words.",
+  "Create a 1000-word setting for a medieval Cthulhu-style RPG.",
+  "Write a 1000-word film review of Interstellar focusing on visual language.",
+  "Describe the process of photosynthesis for high schoolers (1000 words).",
+  "A 1000-word marketing plan for a new specialty coffee shop.",
+  "A comprehensive 1000-word guide to indoor succulent care and pests."
+].join('\n');
 
 const { Title, Text } = Typography;
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function DashboardPage() {
+  const { data, error, isLoading, isValidating } = useSWR<DashboardData>('/api/metrics', fetcher, { refreshInterval: 2000 });
   const { data: appConfig } = useSWR('/api/app-config', fetcher);
   const [mounted, setMounted] = useState(false);
   const [hostName, setHostName] = useState('127.0.0.1');
@@ -26,8 +62,7 @@ export default function DashboardPage() {
   
   // Benchmark State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [benchmarkContainer, setBenchmarkContainer] = useState<any>(null);
+  const [benchmarkContainer, setBenchmarkContainer] = useState<BenchmarkContainer | null>(null);
   const [bmPrompt, setBmPrompt] = useState('你好，介绍一下你自己,200字以内');
   const [enableThinking, setEnableThinking] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -38,8 +73,13 @@ export default function DashboardPage() {
   const [tokenCount, setTokenCount] = useState(0);
   const [decodeTime, setDecodeTime] = useState<number | null>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleOpenBenchmark = (runtime: any, modelConfig: any) => {
+  // Concurrency Benchmark State
+  const [concurrency, setConcurrency] = useState(1);
+  const [benchPrompts, setBenchPrompts] = useState(DEFAULT_BENCH_PROMPTS);
+  const [benchReport, setBenchReport] = useState<BenchmarkResult[]>([]);
+  const [isBenchmarking, setIsBenchmarking] = useState(false);
+
+  const handleOpenBenchmark = (runtime: ContainerMetrics, modelConfig: Record<string, string | number | boolean> | null) => {
     const portMatch = runtime.ports?.match(/:(\d+)->/);
     const port = portMatch ? portMatch[1] : null;
     
@@ -47,8 +87,8 @@ export default function DashboardPage() {
       id: runtime.id,
       name: runtime.name,
       port: port,
-      model: modelConfig?.Model || runtime.name,
-      backend: modelConfig?.Backend || 'unknown'
+      model: String(modelConfig?.Model || runtime.name),
+      backend: String(modelConfig?.Backend || 'unknown')
     });
     setReasoningOutput('');
     setStreamOutput('');
@@ -157,10 +197,87 @@ export default function DashboardPage() {
       setIsStreaming(false);
     }
   };
-  const { data, error, isLoading, isValidating } = useSWR<DashboardData>('/api/metrics', fetcher, {
-    refreshInterval: 2000, // Poll every 2 seconds
-    revalidateOnFocus: true,
-  });
+
+  const runConcurrencyBenchmark = async () => {
+    if (!benchmarkContainer?.port) return;
+    
+    setIsBenchmarking(true);
+    const prompts = benchPrompts.split('\n').filter(p => p.trim()).slice(0, concurrency);
+    
+    const startTimeInner = Date.now();
+    
+    const tasks = prompts.map(async (p) => {
+        const sTime = Date.now();
+        let fTokenTime: number | null = null;
+        let tks = 0;
+        try {
+            const res = await fetch('/api/benchmark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    port: benchmarkContainer.port,
+                    model: benchmarkContainer.model,
+                    prompt: p.trim(),
+                    enableThinking: false
+                })
+            });
+            if (!res.ok || !res.body) return { success: false };
+            
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let dLine = false;
+            let buffer = '';
+            while (!dLine) {
+                const { value, done: readDone } = await reader.read();
+                dLine = readDone;
+                if (value) {
+                    if (!fTokenTime) fTokenTime = Date.now();
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    for (const line of lines) {
+                        if (line.trim().startsWith('data: ')) {
+                            const d = line.trim().slice(6).trim();
+                            if (d && d !== '[DONE]') {
+                                try {
+                                    const json = JSON.parse(d);
+                                    if (json.choices?.[0]?.delta?.content || json.choices?.[0]?.delta?.reasoning_content) {
+                                        tks++;
+                                    }
+                                } catch {}
+                            }
+                        }
+                    }
+                }
+            }
+            const dur = (Date.now() - sTime) / 1000;
+            const ttftVal = fTokenTime ? (fTokenTime - sTime) / 1000 : 0;
+            return { success: true, tps: tks / dur, ttft: ttftVal, dur: dur, tokens: tks };
+        } catch {
+            return { success: false };
+        }
+    });
+
+    const results = await Promise.all(tasks);
+    const totalDuration = (Date.now() - startTimeInner) / 1000;
+    
+    const success = results.filter(r => r.success && r.tokens !== undefined);
+    const systemTps = success.reduce((acc, r) => acc + (r.tokens || 0), 0) / totalDuration;
+    const avgTps = success.length > 0 ? success.reduce((acc, r) => acc + (r.tps || 0), 0) / success.length : 0;
+    const avgTtft = success.length > 0 ? success.reduce((acc, r) => acc + (r.ttft || 0), 0) / success.length : 0;
+
+    const newResult: BenchmarkResult = {
+        key: Date.now(),
+        concurrency: concurrency,
+        systemTps: systemTps.toFixed(2),
+        avgTps: avgTps.toFixed(2),
+        ttft: avgTtft.toFixed(3)
+    };
+
+    setBenchReport(prev => [newResult, ...prev]);
+    setIsBenchmarking(false);
+  };
+
 
   useEffect(() => {
     setMounted(true);
@@ -458,91 +575,172 @@ export default function DashboardPage() {
         }
         open={isModalOpen}
         onCancel={() => {
-           if (!isStreaming) setIsModalOpen(false);
+           if (!isStreaming && !isBenchmarking) setIsModalOpen(false);
         }}
         footer={null}
-        width={700}
+        width={850}
         destroyOnClose
       >
-        <div className="mb-4">
-          <div className="mb-3">
-            <Text type="secondary" className="text-xs mb-1 block">Local API Endpoint:</Text>
-            <Typography.Paragraph 
-              copyable={{ text: `http://${hostName}:${benchmarkContainer?.port}/v1` }}
-              className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200 break-all"
-              style={{ marginBottom: 0 }}
-            >
-              http://{hostName}:{benchmarkContainer?.port}/v1
-            </Typography.Paragraph>
-          </div>
-          <div className="flex items-center justify-between mb-2">
-             <Text strong className="text-slate-700">Test Prompt:</Text>
-             <Space>
-               <Text type="secondary" className="text-xs">
-                 <SettingOutlined /> Enable Thinking
-                 {benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') && (
-                   <Tooltip title="llama.cpp 后端暂不支持通过客户端请求动态关闭思考过程。"><InfoCircleOutlined className="ml-1 text-slate-400" /></Tooltip>
-                 )}
-               </Text>
-               <Switch 
-                 size="small" 
-                 checked={benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') ? true : enableThinking} 
-                 onChange={setEnableThinking} 
-                 disabled={isStreaming || benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp')} 
-               />
-             </Space>
-          </div>
-          <Input.TextArea 
-            rows={3} 
-            value={bmPrompt} 
-            onChange={e => setBmPrompt(e.target.value)} 
-            disabled={isStreaming}
-            className="bg-slate-50 mb-3"
-          />
-          <Button type="primary" onClick={startBenchmark} loading={isStreaming} block icon={<PlayCircleOutlined />}>
-             {isStreaming ? 'Running Benchmark...' : 'Start Request'}
-          </Button>
-        </div>
-
-        <Divider className="my-3 text-slate-400 text-xs text-center" style={{ fontSize: '12px' }}>Output</Divider>
+        <Tabs defaultActiveKey="1" items={[
+          {
+            key: '1',
+            label: 'Single Request',
+            children: (
+              <div className="pt-2">
+                <div className="mb-4">
+                  <div className="mb-3">
+                    <Text type="secondary" className="text-xs mb-1 block">Local API Endpoint:</Text>
+                    <Typography.Paragraph 
+                      copyable={{ text: `http://${hostName}:${benchmarkContainer?.port}/v1` }}
+                      className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200 break-all"
+                    >
+                      http://{hostName}:{benchmarkContainer?.port}/v1
+                    </Typography.Paragraph>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                     <Text strong className="text-slate-700">Test Prompt:</Text>
+                     <Space>
+                       <Text type="secondary" className="text-xs">
+                         <SettingOutlined /> Enable Thinking
+                         {benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') && (
+                           <Tooltip title="llama.cpp 后端暂不支持通过客户端请求动态关闭思考过程。"><InfoCircleOutlined className="ml-1 text-slate-400" /></Tooltip>
+                         )}
+                       </Text>
+                       <Switch 
+                         size="small" 
+                         checked={benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') ? true : enableThinking} 
+                         onChange={setEnableThinking} 
+                         disabled={isStreaming || benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp')} 
+                       />
+                     </Space>
+                  </div>
+                  <Input.TextArea 
+                    rows={3} 
+                    value={bmPrompt} 
+                    onChange={e => setBmPrompt(e.target.value)} 
+                    disabled={isStreaming}
+                    className="bg-slate-50 mb-3"
+                  />
+                  <Button type="primary" onClick={startBenchmark} loading={isStreaming} block icon={<PlayCircleOutlined />}>
+                     {isStreaming ? 'Running Benchmark...' : 'Start Request'}
+                  </Button>
+                </div>
         
-        <div 
-           className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono text-sm leading-relaxed overflow-y-auto h-[300px]"
-        >
-          {reasoningOutput && (
-            <details className="mb-3 text-slate-400 bg-slate-800/40 border border-slate-700/50 rounded p-2" open>
-              <summary className="cursor-pointer select-none text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors outline-none">
-                <span className="ml-1 tracking-wider">REASONING PROCESS</span>
-              </summary>
-              <div className="mt-2 text-xs italic whitespace-pre-wrap leading-relaxed border-t border-slate-700/50 pt-2 pb-1">
-                {reasoningOutput}
+                <Divider className="my-3 text-slate-400 text-xs text-center" style={{ fontSize: '12px' }}>Output</Divider>
+                
+                <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono text-sm leading-relaxed overflow-y-auto h-[250px]">
+                  {reasoningOutput && (
+                    <details className="mb-3 text-slate-400 bg-slate-800/40 border border-slate-700/50 rounded p-2" open>
+                      <summary className="cursor-pointer select-none text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors outline-none">
+                        <span className="ml-1 tracking-wider">REASONING PROCESS</span>
+                      </summary>
+                      <div className="mt-2 text-xs italic whitespace-pre-wrap leading-relaxed border-t border-slate-700/50 pt-2 pb-1">
+                        {reasoningOutput}
+                      </div>
+                    </details>
+                  )}
+                  <div className="whitespace-pre-wrap">
+                    {streamOutput || (!reasoningOutput && <span className="text-slate-600 italic">Waiting for request to start...</span>)}
+                  </div>
+                </div>
+        
+                <div className="grid grid-cols-4 gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500 font-medium mb-1">TTFT</span>
+                    <span className="text-sm font-semibold text-slate-800">{ttft ? `${ttft.toFixed(3)} s` : '-'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500 font-medium mb-1">Tokens</span>
+                    <span className="text-sm font-semibold text-slate-800">{tokenCount > 0 ? `${tokenCount} tk` : '-'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500 font-medium mb-1">Decode</span>
+                    <span className="text-sm font-semibold text-slate-800">{decodeTime ? `${decodeTime.toFixed(2)} s` : '-'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500 font-medium mb-1">Speed</span>
+                    <span className="text-sm font-semibold text-blue-600">{tps ? `${tps.toFixed(2)} tk/s` : '-'}</span>
+                  </div>
+                </div>
               </div>
-            </details>
-          )}
-          <div className="whitespace-pre-wrap">
-            {streamOutput || (!reasoningOutput && <span className="text-slate-600 italic">Waiting for request to start...</span>)}
-          </div>
-        </div>
+            )
+          },
+          {
+            key: '2',
+            label: 'Concurrency Test',
+            children: (
+              <div className="pt-2">
+                <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <Text strong>Concurrency (N):</Text>
+                    <div className="flex items-center gap-4 w-2/3">
+                      <Slider 
+                        min={1} 
+                        max={16} 
+                        value={concurrency} 
+                        onChange={setConcurrency} 
+                        style={{ flex: 1 }}
+                        disabled={isBenchmarking}
+                      />
+                      <InputNumber 
+                        min={1} 
+                        max={16} 
+                        value={concurrency} 
+                        onChange={(v) => setConcurrency(v || 1)}
+                        disabled={isBenchmarking}
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <Text strong className="block mb-2">Prompt List (one per line, first N will be used):</Text>
+                    <Input.TextArea 
+                      rows={6}
+                      value={benchPrompts}
+                      onChange={e => setBenchPrompts(e.target.value)}
+                      placeholder="Enter prompts here..."
+                      disabled={isBenchmarking}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <Button 
+                    type="primary" 
+                    danger={isBenchmarking}
+                    onClick={runConcurrencyBenchmark} 
+                    loading={isBenchmarking} 
+                    block 
+                    icon={<BarChartOutlined />}
+                  >
+                    {isBenchmarking ? 'Running Parallel Requests...' : 'Run Concurrency Test'}
+                  </Button>
+                </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-4 gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-500 font-medium mb-1">TTFT</span>
-            <span className="text-sm font-semibold text-slate-800">{ttft ? `${ttft.toFixed(3)} s` : '-'}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-500 font-medium mb-1">Generated</span>
-            <span className="text-sm font-semibold text-slate-800">{tokenCount > 0 ? `${tokenCount} tk` : '-'}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-500 font-medium mb-1">Decode Time</span>
-            <span className="text-sm font-semibold text-slate-800">{decodeTime ? `${decodeTime.toFixed(3)} s` : '-'}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-500 font-medium mb-1">Speed</span>
-            <span className="text-sm font-semibold text-blue-600">{tps ? `${tps.toFixed(2)} tk/s` : '-'}</span>
-          </div>
-        </div>
+                <div className="mb-2 flex justify-between items-center">
+                   <Text strong><BarChartOutlined /> Result History</Text>
+                   {benchReport.length > 0 && <Button size="small" onClick={() => setBenchReport([])}>Clear</Button>}
+                </div>
+                <Table 
+                    size="small"
+                    dataSource={benchReport}
+                    columns={[
+                      { title: 'Concur (N)', dataIndex: 'concurrency', key: 'concurrency', width: 120 },
+                      { title: 'Sys Total TPS', dataIndex: 'systemTps', key: 'systemTps', render: (val) => <Text strong className="text-blue-600">{val}</Text> },
+                      { title: 'Avg TPS', dataIndex: 'avgTps', key: 'avgTps' },
+                      { title: 'TTFT (s)', dataIndex: 'ttft', key: 'ttft' },
+                    ]}
+                    pagination={false}
+                    className="border border-slate-200 rounded-lg overflow-hidden"
+                    locale={{ emptyText: 'No benchmark results yet' }}
+                />
+                <div className="mt-3 bg-orange-50 p-2 rounded border border-orange-100">
+                    <Text type="secondary" className="text-[11px]">
+                      <InfoCircleOutlined className="mr-1" />
+                      Concurrency test sends N requests in parallel. &quot;Sys Total TPS&quot; is the overall throughput of all requests.
+                    </Text>
+                </div>
+              </div>
+            )
+          }
+        ]} />
       </Modal>
     </div>
   );
