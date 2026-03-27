@@ -63,6 +63,19 @@
     "Context": "128k",
     "Cache_Type_K": "FP16",
     "Cache_Type_V": "FP16",
-    "Benchmark": "45Tks/s"
+    "Benchmark": "45Tks/s",
+    "Pinned": true
+  },
+  "qwen3.5-9b-rocm": {
+    "Model": "Qwen3.5-9B",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF_Q8_0",
+    "Runtime": "rocm",
+    "Arch": "Dense",
+    "Context": "128k",
+    "Cache_Type_K": "FP16",
+    "Cache_Type_V": "FP16",
+    "Benchmark": "35Tks/s",
+    "Pinned": true
   }
 }

@@ -42,7 +42,7 @@ export interface ContainerMetrics {
 }
 
 export interface ModelConfig {
-  [containerName: string]: Record<string, string>;
+  [containerName: string]: Record<string, string | number | boolean>;
 }
 
 export interface DashboardData {
@@ -50,7 +50,7 @@ export interface DashboardData {
   gpus: GpuMetrics[];
   containers: {
     runtime: ContainerMetrics;
-    modelConfig: Record<string, string> | null;
+    modelConfig: Record<string, string | number | boolean> | null;
   }[];
 }
 
