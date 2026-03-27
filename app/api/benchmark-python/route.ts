@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { spawn } from 'child_process';
 import { getDashboardData } from '../../../lib/systemMetrics';
 import fs from 'fs';
@@ -20,84 +20,111 @@ function readConfig() {
   return {};
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
-  try {
-    const { port, model, concurrency, prompts, runtime } = await req.json();
-    const config = readConfig();
-    const pythonPath = config.pythonPath || '/home/lsp/anaconda3/envs/kt/bin/python';
-    const outputDir = config.benchmarkPlotDir || path.join(os.homedir(), '.config/kanban/benchmarks');
+export async function POST(req: NextRequest): Promise<Response> {
+  const { port, model, concurrency, prompts, runtime } = await req.json();
+  const config = readConfig();
+  const pythonPath = config.pythonPath || '/home/lsp/anaconda3/envs/kt/bin/python';
+  const outputDir = config.benchmarkPlotDir || path.join(os.homedir(), '.config/kanban/benchmarks');
 
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const dashboardData = await getDashboardData();
+  const cpuInfo = dashboardData.system.cpuCores ? `${dashboardData.system.cpuModel || 'CPU'} (${dashboardData.system.cpuCores} cores)` : 'Unknown CPU';
+  const osInfo = dashboardData.system.osRelease || 'Linux';
+  
+  let gpuInfo = '';
+  const gpus = dashboardData.gpus || [];
+  if (runtime === 'nvidia') {
+    const nGpus = gpus.filter(g => g.name.toLowerCase().includes('nvidia'));
+    if (nGpus.length > 0) {
+      gpuInfo = `${nGpus.length}x ${nGpus[0].name} (${nGpus[0].memoryTotal})`;
     }
-
-    const dashboardData = await getDashboardData();
-    const cpuInfo = dashboardData.system.cpuCores ? `${dashboardData.system.cpuModel || 'CPU'} (${dashboardData.system.cpuCores} cores)` : 'Unknown CPU';
-    const osInfo = dashboardData.system.osRelease || 'Linux';
-    
-    let gpuInfo = '';
-    const gpus = dashboardData.gpus || [];
-    if (runtime === 'nvidia') {
-      const nGpus = gpus.filter(g => g.name.toLowerCase().includes('nvidia'));
-      if (nGpus.length > 0) {
-        gpuInfo = `${nGpus.length}x ${nGpus[0].name} (${nGpus[0].memoryTotal})`;
-      }
-    } else if (runtime === 'rocm' || runtime === 'vulkan') {
-      const aGpus = gpus.filter(g => g.name.toLowerCase().includes('amd') || g.name.toLowerCase().includes('radeon'));
-      if (aGpus.length > 0) {
-        gpuInfo = `${aGpus.length}x ${aGpus[0].name} (${aGpus[0].memoryTotal})`;
-      }
+  } else if (runtime === 'rocm' || runtime === 'vulkan') {
+    const aGpus = gpus.filter(g => g.name.toLowerCase().includes('amd') || g.name.toLowerCase().includes('radeon'));
+    if (aGpus.length > 0) {
+      gpuInfo = `${aGpus.length}x ${aGpus[0].name} (${aGpus[0].memoryTotal})`;
     }
+  }
 
-    const scriptPath = path.join(process.cwd(), 'scripts/benchmark_script.py');
-    const baseUrl = `http://localhost:${port}/v1`;
-    const apiKey = config.vllmApiKey || 'vllm-test';
+  const scriptPath = path.join(process.cwd(), 'scripts/benchmark_script.py');
+  const baseUrl = `http://localhost:${port}/v1`;
+  const apiKey = config.vllmApiKey || 'vllm-test';
 
-    const args = [
-      scriptPath,
-      '--base-url', baseUrl,
-      '--api-key', apiKey,
-      '--model-name', model,
-      '--concurrency', String(concurrency),
-      '--prompts', JSON.stringify(prompts),
-      '--output-dir', outputDir,
-      '--cpu-info', cpuInfo,
-      '--gpu-info', gpuInfo,
-      '--os-info', osInfo
-    ];
+  const args = [
+    scriptPath,
+    '--base-url', baseUrl,
+    '--api-key', apiKey,
+    '--model-name', model,
+    '--concurrency', String(concurrency),
+    '--prompts', JSON.stringify(prompts),
+    '--output-dir', outputDir,
+    '--cpu-info', cpuInfo,
+    '--gpu-info', gpuInfo,
+    '--os-info', osInfo
+  ];
 
-    console.log('Executing Python Benchmark:', pythonPath, args.join(' '));
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (data: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
 
-    return new Promise<NextResponse>((resolve) => {
+      send({ type: 'log', content: `Starting Python Benchmark: ${pythonPath} ${args.slice(1).join(' ')}\n` });
+
       const child = spawn(pythonPath, args);
       let stdout = '';
-      let stderr = '';
 
       child.stdout.on('data', (data) => {
-        stdout += data.toString();
+        const str = data.toString();
+        stdout += str;
+        send({ type: 'log', content: str });
       });
 
       child.stderr.on('data', (data) => {
-        stderr += data.toString();
+        send({ type: 'log', content: data.toString(), isError: true });
       });
 
       child.on('close', (code) => {
         if (code === 0) {
           try {
-            const result = JSON.parse(stdout.trim());
-            resolve(NextResponse.json(result));
+            // Find the last line that is valid JSON
+            const lines = stdout.trim().split('\n');
+            let result = null;
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try {
+                    result = JSON.parse(lines[i]);
+                    if (result && result.status) break;
+                } catch { continue; }
+            }
+            if (result) {
+                send({ type: 'result', data: result as Record<string, unknown> });
+            } else {
+                send({ type: 'error', message: 'Failed to parse script output', details: stdout });
+            }
           } catch {
-            resolve(NextResponse.json({ error: 'Failed to parse script output', details: stdout, stderr }, { status: 500 }));
+            send({ type: 'error', message: 'Final processing error' });
           }
         } else {
-          resolve(NextResponse.json({ error: 'Script exited with error', code, stderr, stdout }, { status: 500 }));
+          send({ type: 'error', message: `Script exited with code ${code}` });
         }
+        controller.close();
       });
-    });
 
-  } catch (error) {
-    console.error('Python Benchmark API Error:', error);
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+      child.on('error', (err) => {
+        send({ type: 'error', message: err.message });
+        controller.close();
+      });
+    }
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    }
+  });
 }

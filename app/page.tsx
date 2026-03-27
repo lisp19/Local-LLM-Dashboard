@@ -79,6 +79,8 @@ export default function DashboardPage() {
   const [benchReport, setBenchReport] = useState<BenchmarkResult[]>([]);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
   const [benchmarkImage, setBenchmarkImage] = useState<string | null>(null);
+  const [benchmarkMode, setBenchmarkMode] = useState<'python' | 'frontend' | null>(null);
+  const [benchmarkLogs, setBenchmarkLogs] = useState('');
 
   const handleOpenBenchmark = (runtime: ContainerMetrics, modelConfig: Record<string, string | number | boolean> | null) => {
     const portMatch = runtime.ports?.match(/:(\d+)->/);
@@ -97,6 +99,8 @@ export default function DashboardPage() {
     setTps(null);
     setTokenCount(0);
     setDecodeTime(null);
+    setBenchmarkMode(null);
+    setBenchmarkLogs('');
     setIsModalOpen(true);
   };
 
@@ -204,10 +208,13 @@ export default function DashboardPage() {
     
     setIsBenchmarking(true);
     setBenchmarkImage(null);
+    setBenchmarkLogs('');
+    setBenchmarkMode(null);
     const prompts = benchPrompts.split('\n').filter(p => p.trim());
     
-    // 1. Try Python Benchmark First
+    // 1. Try Python Benchmark First (w/ SSE Streaming)
     try {
+        setBenchmarkMode('python');
         const pyRes = await fetch('/api/benchmark-python', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -215,20 +222,65 @@ export default function DashboardPage() {
                 port: benchmarkContainer.port,
                 model: benchmarkContainer.model,
                 concurrency: concurrency,
-                prompts: prompts.slice(0, 16), // Max 16 prompts for script
+                prompts: prompts.slice(0, 16),
                 runtime: benchmarkContainer.backend?.toLowerCase()?.includes('nvidia') ? 'nvidia' : 
                          (benchmarkContainer.backend?.toLowerCase()?.includes('rocm') || benchmarkContainer.backend?.toLowerCase()?.includes('vulkan')) ? 'amd' : 'cpu'
             })
         });
 
-        if (pyRes.ok) {
-            const pyData = await pyRes.json() as { 
+        if (pyRes.ok && pyRes.body) {
+            const reader = pyRes.body.getReader();
+            const decoder = new TextDecoder();
+            let resultData: { 
                 status: string; 
                 image?: string; 
                 report: Array<{ concurrency: number; system_tps: number; avg_tps: number; avg_ttft: number }>;
-            };
-            if (pyData.status === 'success') {
-                const newResults: BenchmarkResult[] = pyData.report.reverse().map((r) => ({
+            } | null = null;
+            let buffer = '';
+
+            // Consume stream
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const packet = JSON.parse(line.slice(6)) as { 
+                                type: 'log' | 'result' | 'error'; 
+                                content?: string; 
+                                data?: { 
+                                    status: string; 
+                                    image?: string; 
+                                    report: Array<{ concurrency: number; system_tps: number; avg_tps: number; avg_ttft: number }>;
+                                }; 
+                                message?: string; 
+                            };
+                            if (packet.type === 'log' && packet.content) {
+                                setBenchmarkLogs(prev => prev + packet.content);
+                            } else if (packet.type === 'result' && packet.data) {
+                                resultData = packet.data;
+                            } else if (packet.type === 'error') {
+                                throw new Error(packet.message || 'Unknown stream error');
+                            }
+                        } catch (e) {
+                            console.error('SSE Parse Error:', e);
+                        }
+                    }
+                }
+            }
+
+            if (resultData && resultData.status === 'success') {
+                const newResults: BenchmarkResult[] = (resultData.report as Array<{
+                    concurrency: number;
+                    system_tps: number;
+                    avg_tps: number;
+                    avg_ttft: number;
+                }>).reverse().map((r) => ({
                     key: Date.now() + Math.random(),
                     concurrency: r.concurrency,
                     systemTps: r.system_tps.toFixed(2),
@@ -236,16 +288,18 @@ export default function DashboardPage() {
                     ttft: r.avg_ttft.toFixed(3)
                 }));
                 setBenchReport(prev => [...newResults, ...prev]);
-                setBenchmarkImage(`/api/benchmark-image?filename=${pyData.image}`);
+                setBenchmarkImage(`/api/benchmark-image?filename=${resultData.image}`);
                 setIsBenchmarking(false);
                 return;
             }
         }
     } catch (e) {
         console.error('Python benchmark failed, falling back to frontend logic:', e);
+        setBenchmarkLogs(prev => prev + `\n[Fallback] Python Suite Failed: ${e instanceof Error ? e.message : String(e)}\nSwitching to Frontend Engine...\n`);
     }
 
     // 2. Fallback to existing frontend logic
+    setBenchmarkMode('frontend');
     const activePrompts = prompts.slice(0, concurrency);
     const startTimeInner = Date.now();
     const portFixed = benchmarkContainer.port;
@@ -726,7 +780,19 @@ export default function DashboardPage() {
               <div className="pt-2">
                 <div className="mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between mb-4">
-                    <Text strong>Concurrency (N):</Text>
+                    <div className="flex items-center gap-2">
+                      <Text strong>Concurrency (N):</Text>
+                      {benchmarkMode && (
+                        <Tag 
+                          color={benchmarkMode === 'python' ? 'purple' : 'orange'} 
+                          bordered={false}
+                          className="!m-0 text-[10px] font-bold uppercase"
+                          icon={benchmarkMode === 'python' ? <BarChartOutlined /> : <InfoCircleOutlined />}
+                        >
+                          {benchmarkMode === 'python' ? 'Python Suite' : 'Frontend Fallback'}
+                        </Tag>
+                      )}
+                    </div>
                     <div className="flex items-center gap-4 w-2/3">
                       <Slider 
                         min={1} 
@@ -767,6 +833,20 @@ export default function DashboardPage() {
                     {isBenchmarking ? 'Running Parallel Requests...' : 'Run Concurrency Test'}
                   </Button>
                 </div>
+
+                {benchmarkLogs && (
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1 px-1">
+                      <Text strong className="text-[10px] uppercase tracking-wider text-slate-400">Execution Logs</Text>
+                      <Button size="small" type="text" className="text-[10px] h-auto p-0" onClick={() => setBenchmarkLogs('')}>Clear</Button>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-[10px] text-emerald-400 overflow-y-auto max-h-[160px] leading-relaxed shadow-inner">
+                      {benchmarkLogs.split('\n').map((line, i) => (
+                        <div key={i} className="min-h-[1.2em]">{line}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mb-2 flex justify-between items-center">
                    <Text strong><BarChartOutlined /> Result History</Text>
