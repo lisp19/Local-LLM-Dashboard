@@ -227,20 +227,35 @@ export default function DashboardPage() {
               {data?.gpus.map((gpu) => (
                 <Card key={gpu.id} bordered={false} hoverable style={{ borderRadius: 16 }} styles={{ body: { padding: '14px 16px' } }} className="shadow-sm col-span-1 md:col-span-2 xl:col-span-2">
                   <div className="flex justify-between items-start mb-2">
-                    <Text type="secondary" className="font-semibold flex-1 mr-2 break-words text-sm leading-tight" title={gpu.name}>GPU {gpu.id}: {gpu.name}</Text>
-                    <div className="flex items-center justify-end gap-1.5 flex-shrink-0">
-                      <Tag color="geekblue" bordered={false} className="!m-0 font-medium">{gpu.temperature}</Tag>
-                      <Tag color="orange" bordered={false} className="!m-0 font-medium">{gpu.powerDraw}W / {gpu.powerLimit}W</Tag>
+                    <div className="flex-1 mr-2 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Tag 
+                          color={gpu.type === 'Nvidia' ? '#76b900' : '#ed1c24'} 
+                          bordered={false} 
+                          className="!m-0 px-1.5 py-0 text-[10px] font-bold text-white uppercase leading-tight flex-shrink-0"
+                          style={{ borderRadius: '4px' }}
+                        >
+                          {gpu.type}
+                        </Tag>
+                        <Text type="secondary" className="font-semibold break-words text-sm leading-tight truncate" title={gpu.name}>
+                          GPU {gpu.id}
+                        </Text>
+                      </div>
+                      <Text className="text-[11px] text-slate-400 block truncate" title={gpu.name}>{gpu.name}</Text>
+                    </div>
+                    <div className="flex items-center justify-end gap-1.5 flex-shrink-0 pt-0.5">
+                      <Tag color="geekblue" bordered={false} className="!m-0 font-medium text-[11px]">{gpu.temperature}</Tag>
+                      <Tag color="orange" bordered={false} className="!m-0 font-medium text-[11px]">{gpu.powerDraw}W / {gpu.powerLimit}W</Tag>
                     </div>
                   </div>
                   <div className="space-y-2 mt-3">
                     <div>
                       <div className="flex justify-between text-xs mb-1 font-medium"><span>Core</span><span>{gpu.utilization}</span></div>
-                      <Progress percent={parseFloat(gpu.utilization)} showInfo={false} strokeColor="#52c41a" size="small" />
+                      <Progress percent={parseFloat(gpu.utilization)} showInfo={false} strokeColor={gpu.type === 'Nvidia' ? '#76b900' : '#ed1c24'} size="small" />
                     </div>
                     <div>
                       <div className="flex justify-between text-xs mb-1 font-medium"><span>VRAM</span><span>{gpu.memoryUsed}</span></div>
-                      <Progress percent={Math.round((parseFloat(gpu.memoryUsed) / parseFloat(gpu.memoryTotal)) * 100) || 0} showInfo={false} strokeColor="#ff4d4f" size="small" />
+                      <Progress percent={Math.round((parseFloat(gpu.memoryUsed) / parseFloat(gpu.memoryTotal)) * 100) || 0} showInfo={false} strokeColor={gpu.type === 'Nvidia' ? '#76b900' : '#ed1c24'} size="small" />
                     </div>
                   </div>
                 </Card>

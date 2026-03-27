@@ -55,14 +55,14 @@
     "Benchmark": "15Tks/s"
   },
   "vllm_qw3": {
-    "Model": "Qwen3.5-35B-A3B",
+    "Model": "Qwen3.5-27B",
     "Backend": "vLLM",
-    "Quant": "AWQ W4A16",
+    "Quant": "GPTQ W4A16",
     "Runtime": "nvidia",
-    "Arch": "MoE",
+    "Arch": "Dense",
     "Context": "128k",
     "Cache_Type_K": "FP16",
     "Cache_Type_V": "FP16",
-    "Benchmark": "115Tks/s"
+    "Benchmark": "45Tks/s"
   }
 }

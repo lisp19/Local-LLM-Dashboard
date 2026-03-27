@@ -19,6 +19,7 @@ export interface SystemMetrics {
 export interface GpuMetrics {
   id: string;
   name: string;
+  type: 'Nvidia' | 'AMD';
   utilization: string;
   memoryUsed: string;
   memoryTotal: string;
@@ -102,6 +103,9 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
 
 // GPU Metrics
 export async function getGpuMetrics(): Promise<GpuMetrics[]> {
+  const gpuMetrics: GpuMetrics[] = [];
+
+  // 1. Try NVIDIA GPUs
   try {
     const { stdout } = await execFileAsync('nvidia-smi', [
       '--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
@@ -109,11 +113,12 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
     ]);
 
     const lines = stdout.trim().split('\n');
-    return lines.map(line => {
+    const nvidiaGpus = lines.map(line => {
       const parts = line.split(',').map(s => s.trim());
       return {
         id: parts[0],
         name: parts[1],
+        type: 'Nvidia' as const,
         utilization: parts[2] ? `${parts[2]}%` : '0%',
         memoryUsed: parts[3] ? `${parts[3]} MiB` : '0 MiB',
         memoryTotal: parts[4] ? `${parts[4]} MiB` : '0 MiB',
@@ -121,11 +126,46 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
         powerDraw: parts[6] ? `${Math.round(parseFloat(parts[6]))}` : '0',
         powerLimit: parts[7] ? `${Math.round(parseFloat(parts[7]))}` : '0',
       };
-    }).filter(g => g.id); // Filter out empty lines
-  } catch (err) {
-    console.error('Failed to get GPU metrics', err);
-    return [];
+    }).filter(g => g.id);
+    gpuMetrics.push(...nvidiaGpus);
+  } catch {
+    // Skip if nvidia-smi fails
   }
+
+  // 2. Try AMD GPUs (ROCm)
+  try {
+    // Get basic stats and names
+    const { stdout: rocmStdout } = await execFileAsync('rocm-smi', ['-a', '--json']);
+    const rocmData = JSON.parse(rocmStdout);
+    
+    // Get precise memory info separately as it's more reliable
+    const { stdout: memStdout } = await execFileAsync('rocm-smi', ['--showmeminfo', 'vram', '--json']);
+    const memData = JSON.parse(memStdout);
+
+    Object.keys(rocmData).forEach(key => {
+      if (key.startsWith('card')) {
+        const id = key.replace('card', '');
+        const gpu = rocmData[key];
+        const mem = memData[key] || {};
+        
+        gpuMetrics.push({
+          id: id,
+          name: gpu['Device Name'] || gpu['Card Series'] || `AMD GPU ${id}`,
+          type: 'AMD' as const,
+          utilization: gpu['GPU use (%)'] ? `${gpu['GPU use (%)']}%` : '0%',
+          memoryUsed: mem['VRAM Total Used Memory (B)'] ? `${Math.round(parseInt(mem['VRAM Total Used Memory (B)']) / 1024 / 1024)} MiB` : '0 MiB',
+          memoryTotal: mem['VRAM Total Memory (B)'] ? `${Math.round(parseInt(mem['VRAM Total Memory (B)']) / 1024 / 1024)} MiB` : '0 MiB',
+          temperature: gpu['Temperature (Sensor edge) (C)'] ? `${gpu['Temperature (Sensor edge) (C)']} °C` : '-',
+          powerDraw: gpu['Current Socket Graphics Package Power (W)'] ? `${Math.round(parseFloat(gpu['Current Socket Graphics Package Power (W)']))}` : '0',
+          powerLimit: gpu['Max Graphics Package Power (W)'] ? `${Math.round(parseFloat(gpu['Max Graphics Package Power (W)']))}` : '0',
+        });
+      }
+    });
+  } catch {
+    // Skip if rocm-smi fails or is not present
+  }
+
+  return gpuMetrics;
 }
 
 // Docker Container Metrics
