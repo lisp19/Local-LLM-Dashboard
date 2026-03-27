@@ -36,16 +36,11 @@ export async function POST(req: NextRequest): Promise<Response> {
   
   let gpuInfo = '';
   const gpus = dashboardData.gpus || [];
-  if (runtime === 'nvidia') {
-    const nGpus = gpus.filter(g => g.name.toLowerCase().includes('nvidia'));
-    if (nGpus.length > 0) {
-      gpuInfo = `${nGpus.length}x ${nGpus[0].name} (${nGpus[0].memoryTotal})`;
-    }
-  } else if (runtime === 'rocm' || runtime === 'vulkan') {
-    const aGpus = gpus.filter(g => g.name.toLowerCase().includes('amd') || g.name.toLowerCase().includes('radeon'));
-    if (aGpus.length > 0) {
-      gpuInfo = `${aGpus.length}x ${aGpus[0].name} (${aGpus[0].memoryTotal})`;
-    }
+  const runtimeType = runtime === 'nvidia' ? 'nvidia' : (runtime === 'amd' ? 'amd' : 'cpu');
+  if (runtime === 'nvidia' && gpus.length > 0) {
+    gpuInfo = `${gpus.length}x ${gpus[0].name} (${gpus[0].memoryTotal})`;
+  } else if ((runtime === 'rocm' || runtime === 'vulkan') && gpus.length > 0) {
+    gpuInfo = `${gpus.length}x ${gpus[0].name} (${gpus[0].memoryTotal})`;
   }
 
   const scriptPath = path.join(process.cwd(), 'scripts/benchmark_script.py');
@@ -62,7 +57,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     '--output-dir', outputDir,
     '--cpu-info', cpuInfo,
     '--gpu-info', gpuInfo,
-    '--os-info', osInfo
+    '--os-info', osInfo,
+    '--runtime-type', runtimeType
   ];
 
   const encoder = new TextEncoder();

@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument("--cpu-info", type=str, default="Unknown CPU", help="CPU hardware info")
     parser.add_argument("--gpu-info", type=str, default="", help="GPU hardware info")
     parser.add_argument("--os-info", type=str, default="Linux", help="OS info")
+    parser.add_argument("--runtime-type", type=str, default="cpu", choices=["nvidia", "amd", "cpu"], help="GPU runtime type: nvidia, amd, or cpu")
     return parser.parse_args()
 
 async def monitor_resources(stop_event, stats_result, runtime_type="nvidia"):
@@ -212,7 +213,7 @@ async def main():
     else:
         base_prompts = ["Tell me about yourself in 1000 words."]
 
-    runtime_type = "nvidia" if "nvidia" in args.gpu_info.lower() else "amd" if ("amd" in args.gpu_info.lower() or "rocm" in args.gpu_info.lower()) else "cpu"
+    runtime_type = args.runtime_type
     
     # Levels to test: 1, 2, 4, 8, 16 up to requested concurrency
     levels = [l for l in [1, 2, 4, 8, 16] if l <= args.concurrency]
