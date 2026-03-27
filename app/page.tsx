@@ -18,6 +18,7 @@ interface BenchmarkContainer {
   name: string;
   port: string | null;
   model: string;
+  servedName: string;
   backend: string;
 }
 
@@ -91,6 +92,7 @@ export default function DashboardPage() {
       name: runtime.name,
       port: port,
       model: String(modelConfig?.Model || runtime.name),
+      servedName: String(modelConfig?.Served_Name || modelConfig?.Model || runtime.name),
       backend: String(modelConfig?.Backend || 'unknown')
     });
     setReasoningOutput('');
@@ -220,7 +222,7 @@ export default function DashboardPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 port: benchmarkContainer.port,
-                model: benchmarkContainer.model,
+                model: benchmarkContainer.servedName,
                 concurrency: concurrency,
                 prompts: prompts.slice(0, 16),
                 runtime: benchmarkContainer.backend?.toLowerCase()?.includes('nvidia') ? 'nvidia' : 
@@ -303,7 +305,7 @@ export default function DashboardPage() {
     const activePrompts = prompts.slice(0, concurrency);
     const startTimeInner = Date.now();
     const portFixed = benchmarkContainer.port;
-    const modelFixed = benchmarkContainer.model;
+    const modelFixed = benchmarkContainer.servedName;
     
     const tasks = activePrompts.map(async (p: string) => {
         const sTime = Date.now();
