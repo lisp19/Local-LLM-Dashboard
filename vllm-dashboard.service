@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 # User=your_username
-WorkingDirectory=/home/lsp/kanban
+WorkingDirectory=~/kanban
 Environment=NODE_ENV=production
 Environment=PORT=3000
 ExecStart=/usr/bin/npm run start

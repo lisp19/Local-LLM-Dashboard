@@ -30,7 +30,7 @@ mv ../kanban.md .
 ```
 
 ### 2.2 创建 Next.js 项目并锁定 React 18
-请在 `/home/lsp/kanban` 目录下运行以下命令（建议使用国内源，如 cnpm 或设置 npm registry）。这段代码将创建 Next.js 15 项目，但强制使用 React 18，以兼容 Ant Design v5 的部分特性。
+请在 `~/kanban` 目录下运行以下命令
 
 ```bash
 # 1. 再次将 kanban.md 移出以保证目录干净

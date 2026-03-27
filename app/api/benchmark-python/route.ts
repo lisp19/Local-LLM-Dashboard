@@ -20,11 +20,18 @@ function readConfig() {
   return {};
 }
 
+function expandHome(pathStr: string): string {
+  if (pathStr.startsWith('~')) {
+    return path.join(os.homedir(), pathStr.slice(1));
+  }
+  return pathStr;
+}
+
 export async function POST(req: NextRequest): Promise<Response> {
   const { port, model, concurrency, prompts, runtime } = await req.json();
   const config = readConfig();
-  const pythonPath = config.pythonPath || '/home/lsp/anaconda3/envs/kt/bin/python';
-  const outputDir = config.benchmarkPlotDir || path.join(os.homedir(), '.config/kanban/benchmarks');
+  const pythonPath = expandHome(config.pythonPath || '~/anaconda3/envs/kt/bin/python');
+  const outputDir = expandHome(config.benchmarkPlotDir || path.join(os.homedir(), '.config/kanban/benchmarks'));
 
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
