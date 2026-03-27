@@ -55,7 +55,7 @@
     "Benchmark": "15Tks/s"
   },
   "vllm_qw3": {
-    "Model": "Qwen3.5-27B",
+    "Model": "Qwen3.5-27B-Claude-Distilled",
     "Backend": "vLLM",
     "Quant": "GPTQ W4A16",
     "Runtime": "nvidia",
@@ -67,14 +67,14 @@
     "Pinned": true
   },
   "qwen3.5-9b-rocm": {
-    "Model": "Qwen3.5-9B",
+    "Model": "Qwen3.5-9B-Claude-Distilled",
     "Backend": "llama.cpp",
     "Quant": "GGUF_Q8_0",
     "Runtime": "rocm",
     "Arch": "Dense",
     "Context": "128k",
-    "Cache_Type_K": "FP16",
-    "Cache_Type_V": "FP16",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
     "Benchmark": "35Tks/s",
     "Pinned": true
   }

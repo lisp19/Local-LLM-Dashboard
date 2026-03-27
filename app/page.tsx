@@ -416,7 +416,7 @@ export default function DashboardPage() {
                                        else if (kind.includes('vulkan')) color = '#bc13fe';
                                        else if (kind.includes('cpu')) color = '#1677ff';
                                        
-                                       content = <Tag color={color} bordered={false} className="!m-0 font-bold capitalize text-white" style={{ borderRadius: '4px' }}>{String(v)}</Tag>;
+                                       content = <Tag color={color} bordered={false} className="!m-0 font-bold text-white" style={{ borderRadius: '4px' }}>{String(v).toUpperCase()}</Tag>;
                                      } else if (k === 'Backend') {
                                      const kind = String(v).toLowerCase();
                                      let color = 'default';
