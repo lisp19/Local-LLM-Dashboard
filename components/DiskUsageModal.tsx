@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Modal, Tree, Typography, Space, Spin, message, Row, Col, Progress, Card, Button, Divider, Tooltip } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Modal, Tree, Typography, Space, Spin, message, Row, Col, Progress, Card, Button, Divider, Tooltip, Segmented } from 'antd';
 import { HddOutlined, FolderOpenOutlined, FileOutlined, DatabaseOutlined, ReloadOutlined } from '@ant-design/icons';
 
 const { Text, Title } = Typography;
@@ -37,12 +37,45 @@ interface DiskUsageModalProps {
   onClose: () => void;
 }
 
+const sizeToBytes = (sizeStr: string) => {
+  const match = sizeStr.trim().match(/^([0-9.]+)([KMGTP]?)$/i);
+  if (!match) return 0;
+  const val = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  const multiplier: Record<string, number> = {
+    '': 1, 'K': 1024, 'M': Math.pow(1024, 2), 'G': Math.pow(1024, 3), 'T': Math.pow(1024, 4), 'P': Math.pow(1024, 5),
+  };
+  return val * (multiplier[unit] || 1);
+};
+
+const sortTree = (nodes: TreeNodeData[], order: 'default' | 'size'): TreeNodeData[] => {
+  return [...nodes].sort((a, b) => {
+    if (order === 'size') {
+      return sizeToBytes(b.size) - sizeToBytes(a.size);
+    } else {
+      const aIsDir = a.isLeaf === false;
+      const bIsDir = b.isLeaf === false;
+      if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+      return String(a.rawPath || '').localeCompare(String(b.rawPath || ''));
+    }
+  }).map(node => {
+    if (node.children && node.children.length > 0) {
+      return { ...node, children: sortTree(node.children, order) };
+    }
+    return node;
+  });
+};
+
 export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
   const [loading, setLoading] = useState(false);
   const [overview, setOverview] = useState<DiskOverview | null>(null);
   
   const [treeDataPinned, setTreeDataPinned] = useState<TreeNodeData[]>([]);
   const [treeDataRoot, setTreeDataRoot] = useState<TreeNodeData[]>([]);
+  const [sortOrder, setSortOrder] = useState<'default' | 'size'>('default');
+
+  const sortedPinned = useMemo(() => sortTree(treeDataPinned, sortOrder), [treeDataPinned, sortOrder]);
+  const sortedRoot = useMemo(() => sortTree(treeDataRoot, sortOrder), [treeDataRoot, sortOrder]);
 
   useEffect(() => {
     if (open && !overview && !loading) {
@@ -169,16 +202,27 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
             <DatabaseOutlined className="text-blue-500" />
             <span>Disk Usage Explorer</span>
           </Space>
-          <Tooltip title="Force refresh and recalculate sizes">
-            <Button 
-               size="small" 
-               type="text" 
-               icon={<ReloadOutlined />} 
-               onClick={() => loadData(true)} 
-               loading={loading}
-               className="text-slate-500 hover:text-blue-600"
+          <Space>
+            <Segmented 
+              options={[
+                { label: 'Default Sort', value: 'default' },
+                { label: 'Sort by Size', value: 'size' }
+              ]}
+              value={sortOrder}
+              onChange={(val) => setSortOrder(val as 'default' | 'size')}
+              size="small"
             />
-          </Tooltip>
+            <Tooltip title="Force refresh and recalculate sizes">
+              <Button 
+                 size="small" 
+                 type="text" 
+                 icon={<ReloadOutlined />} 
+                 onClick={() => loadData(true)} 
+                 loading={loading}
+                 className="text-slate-500 hover:text-blue-600"
+              />
+            </Tooltip>
+          </Space>
         </div>
       )}
       open={open}
@@ -217,7 +261,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
             <div className="border border-slate-200 rounded-lg p-3 bg-white mb-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
               <Tree
                 loadData={(node) => onLoadData(setTreeDataPinned, node)}
-                treeData={treeDataPinned}
+                treeData={sortedPinned}
                 blockNode
                 showLine={{ showLeafIcon: false }}
               />
@@ -229,7 +273,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
             <div className="border border-slate-200 rounded-lg p-3 bg-white" style={{ minHeight: '300px', maxHeight: '400px', overflowY: 'auto' }}>
               <Tree
                 loadData={(node) => onLoadData(setTreeDataRoot, node)}
-                treeData={treeDataRoot}
+                treeData={sortedRoot}
                 blockNode
                 showLine={{ showLeafIcon: false }}
               />
