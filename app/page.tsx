@@ -2,8 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined } from '@ant-design/icons';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined } from '@ant-design/icons';
 import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
+import DiskUsageModal from '../components/DiskUsageModal';
+
 
 interface BenchmarkResult {
   key: number;
@@ -64,6 +66,7 @@ export default function DashboardPage() {
   
   // Benchmark State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDiskModalOpen, setIsDiskModalOpen] = useState(false);
   const [benchmarkContainer, setBenchmarkContainer] = useState<BenchmarkContainer | null>(null);
   const [bmPrompt, setBmPrompt] = useState('你好，介绍一下你自己,200字以内');
   const [enableThinking, setEnableThinking] = useState(false);
@@ -449,9 +452,19 @@ export default function DashboardPage() {
         <>
           {/* System & Global Metrics */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 px-1">
-              <DesktopOutlined className="text-slate-400" />
-              <Title level={5} style={{ margin: 0, fontSize: '14px' }}>Host System & GPUs</Title>
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <DesktopOutlined className="text-slate-400" />
+                <Title level={5} style={{ margin: 0, fontSize: '14px' }}>Host System & GPUs</Title>
+              </div>
+              <Button 
+                size="small" 
+                type="text" 
+                className="text-slate-500 hover:text-blue-600"
+                onClick={() => setIsDiskModalOpen(true)}
+              >
+                <DatabaseOutlined /> Disk Explorer
+              </Button>
             </div>
 
             {/* System Header Bar */}
@@ -917,6 +930,11 @@ export default function DashboardPage() {
           }
         ]} />
       </Modal>
+
+      <DiskUsageModal 
+        open={isDiskModalOpen} 
+        onClose={() => setIsDiskModalOpen(false)} 
+      />
     </div>
   );
 }
