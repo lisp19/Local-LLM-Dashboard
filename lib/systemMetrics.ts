@@ -29,6 +29,7 @@ export interface GpuMetrics {
   temperature: string;
   powerDraw: string;
   powerLimit: string;
+  fanSpeed: string;
 }
 
 export interface ContainerMetrics {
@@ -140,7 +141,7 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
   try {
     const nvidiaSmi = await findBinary('nvidia-smi');
     const { stdout } = await execFileAsync(nvidiaSmi, [
-      '--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
+      '--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed',
       '--format=csv,noheader,nounits'
     ]);
 
@@ -157,6 +158,7 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
         temperature: parts[5] ? `${parts[5]} °C` : '-',
         powerDraw: parts[6] ? `${Math.round(parseFloat(parts[6]))}` : '0',
         powerLimit: parts[7] ? `${Math.round(parseFloat(parts[7]))}` : '0',
+        fanSpeed: parts[8] && parts[8] !== 'N/A' ? `${parts[8]}%` : '-',
       };
     }).filter(g => g.id);
     gpuMetrics.push(...nvidiaGpus);
@@ -191,6 +193,7 @@ export async function getGpuMetrics(): Promise<GpuMetrics[]> {
           temperature: gpu['Temperature (Sensor edge) (C)'] ? `${gpu['Temperature (Sensor edge) (C)']} °C` : '-',
           powerDraw: gpu['Current Socket Graphics Package Power (W)'] ? `${Math.round(parseFloat(gpu['Current Socket Graphics Package Power (W)']))}` : '0',
           powerLimit: gpu['Max Graphics Package Power (W)'] ? `${Math.round(parseFloat(gpu['Max Graphics Package Power (W)']))}` : '0',
+          fanSpeed: gpu['Fan speed (%)'] ? `${gpu['Fan speed (%)']}%` : '-',
         });
       }
     });

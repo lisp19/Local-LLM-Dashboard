@@ -518,6 +518,9 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex items-center justify-end gap-1.5 flex-shrink-0 pt-0.5">
                       <Tag color="geekblue" bordered={false} className="!m-0 font-medium text-[11px]">{gpu.temperature}</Tag>
+                      {gpu.fanSpeed && gpu.fanSpeed !== '-' && (
+                        <Tag color="cyan" bordered={false} className="!m-0 font-medium text-[11px]">🌀 {gpu.fanSpeed}</Tag>
+                      )}
                       <Tag color="orange" bordered={false} className="!m-0 font-medium text-[11px]">{gpu.powerDraw}W / {gpu.powerLimit}W</Tag>
                     </div>
                   </div>
