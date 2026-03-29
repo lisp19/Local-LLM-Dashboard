@@ -1,10 +1,11 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
 import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
 import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined } from '@ant-design/icons';
 import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
 import DiskUsageModal from '../components/DiskUsageModal';
+import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
 
 
 interface BenchmarkResult {
@@ -77,6 +78,23 @@ export default function DashboardPage() {
   const [tps, setTps] = useState<number | null>(null);
   const [tokenCount, setTokenCount] = useState(0);
   const [decodeTime, setDecodeTime] = useState<number | null>(null);
+
+  // Draggable Modal State
+  const [dragDisabled, setDragDisabled] = useState(true);
+  const [bounds, setBounds] = useState({ left: 0, top: 0, bottom: 0, right: 0 });
+  const draggleRef = useRef<HTMLDivElement>(null);
+
+  const onDragStart = (_event: DraggableEvent, uiData: DraggableData) => {
+    const { clientWidth, clientHeight } = window.document.documentElement;
+    const targetRect = draggleRef.current?.getBoundingClientRect();
+    if (!targetRect) return;
+    setBounds({
+      left: -targetRect.left + uiData.x,
+      right: clientWidth - (targetRect.right - uiData.x),
+      top: -targetRect.top + uiData.y,
+      bottom: clientHeight - (targetRect.bottom - uiData.y),
+    });
+  };
 
   // Concurrency Benchmark State
   const [concurrency, setConcurrency] = useState(1);
@@ -715,7 +733,11 @@ export default function DashboardPage() {
       )}
       <Modal
         title={
-          <div className="flex items-center gap-2">
+          <div 
+             className="flex items-center gap-2 cursor-move select-none w-full"
+             onMouseOver={() => { if (dragDisabled) setDragDisabled(false); }}
+             onMouseOut={() => { setDragDisabled(true); }}
+          >
             <PlayCircleOutlined className="text-blue-500" />
             <span>Benchmark: {benchmarkContainer?.name}</span>
           </div>
@@ -727,6 +749,18 @@ export default function DashboardPage() {
         footer={null}
         width={850}
         destroyOnClose
+        mask={false}
+        wrapClassName="non-blocking-modal-wrap"
+        modalRender={(modal) => (
+          <Draggable
+            disabled={dragDisabled}
+            bounds={bounds}
+            nodeRef={draggleRef}
+            onStart={(event, uiData) => onDragStart(event, uiData)}
+          >
+            <div ref={draggleRef}>{modal}</div>
+          </Draggable>
+        )}
       >
         <Tabs defaultActiveKey="1" items={[
           {

@@ -104,7 +104,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       }));
 
       setTreeData(origin => updateTreeData(origin, key, newChildren));
-    } catch (e) {
+    } catch {
       message.error('Permission denied or failed to load folder contents');
     }
   };
