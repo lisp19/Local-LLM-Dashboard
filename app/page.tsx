@@ -948,6 +948,7 @@ export default function DashboardPage() {
                       <Button size="small" type="text" onClick={() => window.open(allImages[benchmarkContainer.id] || '', '_blank')}>View Full</Button>
                     </div>
                     <div className="p-2 flex justify-center bg-slate-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={allImages[benchmarkContainer.id] || ''} alt="Benchmark Plot" className="max-w-full h-auto rounded shadow-sm" style={{ maxHeight: '400px' }} />
                     </div>
                   </div>
