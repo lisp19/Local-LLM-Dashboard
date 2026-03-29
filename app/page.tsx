@@ -287,6 +287,12 @@ export default function DashboardPage() {
                                 }));
                             } else if (packet.type === 'result' && packet.data) {
                                 resultData = packet.data;
+                                // Apply image immediately in loop - don't wait for post-loop check
+                                if (resultData.status === 'success' && resultData.image) {
+                                    const containerId = benchmarkContainer?.id || 'default';
+                                    const imageUrl = `/api/benchmark-image?filename=${resultData.image}`;
+                                    setAllImages(prev => ({ ...prev, [containerId]: imageUrl }));
+                                }
                             } else if (packet.type === 'error') {
                                 throw new Error(packet.message || 'Unknown stream error');
                             }
@@ -304,6 +310,7 @@ export default function DashboardPage() {
                 setIsBenchmarking(false);
                 return;
             }
+
         }
     } catch (e) {
         console.error('Python benchmark failed, falling back to frontend logic:', e);
