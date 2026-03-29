@@ -7,15 +7,23 @@ export const dynamic = 'force-dynamic';
 
 const CONFIG_PATH = path.join(os.homedir(), '.config/kanban/config.json');
 
+function expandHome(pathStr: string): string {
+  if (pathStr.startsWith('~')) {
+    return path.join(os.homedir(), pathStr.slice(1));
+  }
+  return pathStr;
+}
+
 function getPlotDir() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-      if (config.benchmarkPlotDir) return config.benchmarkPlotDir;
+      if (config.benchmarkPlotDir) return expandHome(config.benchmarkPlotDir);
     }
   } catch { }
   return path.join(os.homedir(), '.config/kanban/benchmarks');
 }
+
 
 export async function GET(req: NextRequest) {
   try {
