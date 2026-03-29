@@ -90,7 +90,7 @@ async def monitor_resources(stop_event, stats_result, runtime_type="nvidia"):
     stats_result['mem'] = sum(mem_records)/len(mem_records) if mem_records else 0
 
 async def fetch_chat(client, model_name, prompt):
-    start = time.time()
+    start = time.perf_counter()
     first_token_time = None
     token_count = 0
     try:
@@ -99,11 +99,20 @@ async def fetch_chat(client, model_name, prompt):
             stream=True, max_tokens=500, stream_options={"include_usage": True}
         )
         async for chunk in response:
-            if first_token_time is None and chunk.choices and chunk.choices[0].delta.content:
-                first_token_time = time.time()
-            if chunk.usage: token_count = chunk.usage.completion_tokens
+            if chunk.choices:
+                # Record TTFT on the first response chunk that contains choices
+                if first_token_time is None:
+                    first_token_time = time.perf_counter()
+                
+                # If usage is not available, we increment token count as a fallback
+                # (most OpenAI-compatible streamers send one token per chunk)
+                if not chunk.usage and chunk.choices[0].delta.content:
+                    token_count += 1
+            
+            if chunk.usage:
+                token_count = chunk.usage.completion_tokens
 
-        dur = time.time() - start
+        dur = time.perf_counter() - start
         ttft = first_token_time - start if first_token_time else 0
         return {"success": True, "tps": token_count/dur if dur > 0 else 0, "ttft": ttft, "dur": dur, "tokens": token_count}
     except Exception as e:
@@ -117,9 +126,9 @@ async def run_test(client, model_name, concurrency, base_prompts, runtime_type):
     sys_stats = {}
     monitor_task = asyncio.create_task(monitor_resources(stop_event, sys_stats, runtime_type))
 
-    start_time = time.time()
+    start_batch_time = time.perf_counter()
     results = await asyncio.gather(*(fetch_chat(client, model_name, p) for p in prompts))
-    total_dur = time.time() - start_time
+    total_batch_dur = time.perf_counter() - start_batch_time
 
     stop_event.set()
     await monitor_task
@@ -131,7 +140,7 @@ async def run_test(client, model_name, concurrency, base_prompts, runtime_type):
 
     return {
         "concurrency": concurrency,
-        "system_tps": (len(success) * 500) / total_dur if total_dur > 0 else 0,
+        "system_tps": (len(success) * 500) / total_batch_dur if total_batch_dur > 0 else 0,
         "avg_tps": sum(r["tps"] for r in success) / len(success),
         "avg_ttft": sum(r["ttft"] for r in success) / len(success),
         "avg_dur": sum(r["dur"] for r in success) / len(success),
