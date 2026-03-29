@@ -72,10 +72,10 @@
     "Benchmark": "15Tks/s"
   },
   "vllm_qw3": {
-    "Model": "Qwen3.5-27B-Claude-4.6-Opus-Distilled",
+    "Model": "Qwen3.5-27B-AWQ",
     "Served_Name": "qwen3.5-27b",
     "Backend": "vLLM",
-    "Quant": "GPTQ W4A16",
+    "Quant": "AWQ W4A16",
     "Runtime": "nvidia",
     "Arch": "Dense",
     "Context": "128k",
