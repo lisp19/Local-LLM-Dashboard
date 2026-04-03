@@ -24,6 +24,7 @@ interface BenchmarkContainer {
   servedName: string;
   backend: string;
   runtime: string;
+  supportsThinkingToggle: boolean;
 }
 
 const DEFAULT_BENCH_PROMPTS = [
@@ -116,7 +117,8 @@ export default function DashboardPage() {
       model: String(modelConfig?.Model || runtime.name),
       servedName: String(modelConfig?.Served_Name || modelConfig?.Model || runtime.name),
       backend: String(modelConfig?.Backend || 'unknown'),
-      runtime: String(modelConfig?.Runtime || 'cpu').toLowerCase()
+      runtime: String(modelConfig?.Runtime || 'cpu').toLowerCase(),
+      supportsThinkingToggle: modelConfig?.Supports_Thinking_Toggle !== undefined ? Boolean(modelConfig?.Supports_Thinking_Toggle) : true
     });
     setReasoningOutput('');
     setStreamOutput('');
@@ -155,7 +157,7 @@ export default function DashboardPage() {
           port: benchmarkContainer.port,
           model: benchmarkContainer.model,
           prompt: bmPrompt.trim(),
-          enableThinking: enableThinking
+          enableThinking: benchmarkContainer?.supportsThinkingToggle ? enableThinking : true
         })
       });
 
@@ -193,8 +195,15 @@ export default function DashboardPage() {
               if (data === '[DONE]') continue;
               try {
                 const json = JSON.parse(data);
-                const content = json.choices?.[0]?.delta?.content;
-                const reason = json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning || json.choices?.[0]?.delta?.reason;
+                let content = json.choices?.[0]?.delta?.content;
+                let reason = json.choices?.[0]?.delta?.reasoning_content || json.choices?.[0]?.delta?.reasoning || json.choices?.[0]?.delta?.reason;
+
+                const effectiveEnableThinking = benchmarkContainer?.supportsThinkingToggle ? enableThinking : true;
+                if (!effectiveEnableThinking && reason) {
+                  content = (content || '') + reason;
+                  reason = undefined;
+                }
+
                 if (reason) {
                   setReasoningOutput(prev => prev + reason);
                   tokens++;
@@ -783,15 +792,15 @@ export default function DashboardPage() {
                      <Space>
                        <Text type="secondary" className="text-xs">
                          <SettingOutlined /> Enable Thinking
-                         {benchmarkContainer?.backend?.toLowerCase()?.includes('llama.cpp') && (
-                           <Tooltip title="llama.cpp 后端暂不支持通过客户端请求动态关闭思考过程。"><InfoCircleOutlined className="ml-1 text-slate-400" /></Tooltip>
+                         {!benchmarkContainer?.supportsThinkingToggle && (
+                           <Tooltip title="当前模型配置不支持动态关闭思考过程，将默认全局开启计算。"><InfoCircleOutlined className="ml-1 text-slate-400" /></Tooltip>
                          )}
                        </Text>
                        <Switch 
                          size="small" 
-                         checked={benchmarkContainer?.backend?.toLowerCase()?.includes('vllm') ? enableThinking : true} 
+                         checked={benchmarkContainer?.supportsThinkingToggle ? enableThinking : true} 
                          onChange={setEnableThinking} 
-                         disabled={isStreaming || !benchmarkContainer?.backend?.toLowerCase()?.includes('vllm')} 
+                         disabled={isStreaming || !benchmarkContainer?.supportsThinkingToggle} 
                        />
                      </Space>
                   </div>

@@ -9,7 +9,8 @@
     "Context": "192k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "15Tks/s"
+    "Benchmark": "15Tks/s",
+    "Supports_Thinking_Toggle": true
   },
   "gpt-cpu": {
     "Model": "GPT OSS-20B",
@@ -21,7 +22,8 @@
     "Context": "128k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "20Tks/s"
+    "Benchmark": "20Tks/s",
+    "Supports_Thinking_Toggle": false
   },
   "qwen3.5-4b-vulkan": {
     "Model": "Qwen3.5-4B-Claude-4.6-Opus-Distilled",
@@ -33,7 +35,8 @@
     "Context": "128k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "60Tks/s"
+    "Benchmark": "60Tks/s",
+    "Supports_Thinking_Toggle": false
   },
   "gemma-cpu": {
     "Model": "Gemma3-it-27B",
@@ -45,7 +48,8 @@
     "Context": "128k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "5Tks/s"
+    "Benchmark": "5Tks/s",
+    "Supports_Thinking_Toggle": false
   },
   "gemma3-1.58": {
     "Model": "Gemma3-it-27B 1.58bit",
@@ -57,7 +61,8 @@
     "Context": "32k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "5Tks/s"
+    "Benchmark": "5Tks/s",
+    "Supports_Thinking_Toggle": false
   },
   "qw3-1.58": {
     "Model": "Qwen3-30B-A3B-Instruct 1.58bit",
@@ -69,7 +74,22 @@
     "Context": "32k",
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
-    "Benchmark": "15Tks/s"
+    "Benchmark": "15Tks/s",
+    "Supports_Thinking_Toggle": false
+  },
+  "gemma4": {
+    "Model": "Gemma4-31B-GGUF-Q8_0",
+    "Served_Name": "gemma4-31b",
+    "Backend": "llama.cpp",
+    "Quant": "GGUF Q8_0",
+    "Runtime": "nvidia",
+    "Arch": "Dense",
+    "Context": "128k",
+    "Cache_Type_K": "Q8_0",
+    "Cache_Type_V": "Q4_0",
+    "Benchmark": "25Tks/s",
+    "Pinned": true,
+    "Supports_Thinking_Toggle": true
   },
   "vllm_qw3": {
     "Model": "Qwen3.5-27B-AWQ",
@@ -82,7 +102,8 @@
     "Cache_Type_K": "FP16",
     "Cache_Type_V": "FP16",
     "Benchmark": "45Tks/s",
-    "Pinned": true
+    "Pinned": true,
+    "Supports_Thinking_Toggle": true
   },
   "qwen3.5-9b-vulkan": {
     "Model": "Qwen3.5-9B-Claude-4.6-Opus-Distilled",
@@ -95,6 +116,7 @@
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
     "Benchmark": "40Tks/s",
-    "Pinned": true
+    "Pinned": true,
+    "Supports_Thinking_Toggle": false
   }
 }
