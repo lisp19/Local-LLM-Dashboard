@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
 import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled } from '@ant-design/icons';
 import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
 import DiskUsageModal from '../components/DiskUsageModal';
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
@@ -650,6 +650,11 @@ export default function DashboardPage() {
                                   );
                                 })()}
                                 {isPinned && <Tag color="blue" bordered={false} className="ml-2 !mr-0 font-medium">Pinned</Tag>}
+                                {modelConfig?.Supports_Thinking_Toggle && (
+                                  <Tooltip title="Supports Thinking Toggle">
+                                    <Tag color="orange" bordered={false} className="ml-2 !mr-0 px-1 cursor-help" style={{ display: 'flex', alignItems: 'center' }}><BulbFilled /></Tag>
+                                  </Tooltip>
+                                )}
                                 {modelConfig && (modelConfig.Arch || modelConfig.Architecture) && (() => {
                                    const archVal = String(modelConfig.Arch || modelConfig.Architecture);
                                    const isMoe = archVal.toLowerCase().includes('moe');
@@ -694,7 +699,7 @@ export default function DashboardPage() {
                                   <span className="font-bold text-slate-800">{String(modelConfig.Model || 'Unknown')}</span>
                                 </Descriptions.Item>
                                 {Object.entries(modelConfig)
-                                  .filter(([k]) => k !== 'Model' && k !== 'Arch' && k !== 'Architecture' && k !== 'Pinned')
+                                  .filter(([k]) => k !== 'Model' && k !== 'Arch' && k !== 'Architecture' && k !== 'Pinned' && k !== 'Supports_Thinking_Toggle')
                                   .map(([k, v]) => {
                                    let content: React.ReactNode = String(v);
                                      if (k === 'Runtime') {
