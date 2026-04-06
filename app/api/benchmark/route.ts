@@ -4,7 +4,7 @@ import { loadAppConfig } from '../../../lib/appConfig';
 export async function POST(req: NextRequest) {
   try {
     const config = await loadAppConfig();
-    const { port, model, prompt, enableThinking } = await req.json();
+    const { port, model, prompt, enableThinking, supportsThinkingToggle } = await req.json();
 
     if (!port || !model) {
       return new Response(JSON.stringify({ error: "Missing port or model parameters" }), { status: 400 });
@@ -35,10 +35,12 @@ export async function POST(req: NextRequest) {
       stream: true,
     };
     
-    // Inject extra kwargs if disable thinking is chosen
-    if (enableThinking === false) {
+    // Inject chat_template_kwargs only when the model supports thinking toggle.
+    // Always send explicit true/false so servers like vllm_gemma4 (which default
+    // to thinking=OFF) are correctly controlled in both directions.
+    if (supportsThinkingToggle === true && typeof enableThinking === 'boolean') {
       payload.chat_template_kwargs = {
-        enable_thinking: false
+        enable_thinking: enableThinking
       };
     }
 

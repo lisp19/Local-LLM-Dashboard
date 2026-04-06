@@ -157,6 +157,7 @@ export default function DashboardPage() {
           port: benchmarkContainer.port,
           model: benchmarkContainer.model,
           prompt: bmPrompt.trim(),
+          supportsThinkingToggle: benchmarkContainer.supportsThinkingToggle,
           enableThinking: benchmarkContainer?.supportsThinkingToggle ? enableThinking : true
         })
       });

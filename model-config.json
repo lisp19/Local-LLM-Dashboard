@@ -77,6 +77,20 @@
     "Benchmark": "15Tks/s",
     "Supports_Thinking_Toggle": false
   },
+   "vllm_gemma4": {
+    "Model": "Gemma4-31B",
+    "Served_Name": "gemma4-31b",
+    "Backend": "vLLM",
+    "Quant": "AWQ W4A16",
+    "Runtime": "nvidia",
+    "Arch": "Dense",
+    "Context": "192k",
+    "Cache_Type_K": "FP16",
+    "Cache_Type_V": "FP16",
+    "Benchmark": "40Tks/s",
+    "Pinned": true,
+    "Supports_Thinking_Toggle": true
+  },
   "gemma4": {
     "Model": "Gemma4-31B-GGUF-Q8_0",
     "Served_Name": "gemma4-31b",
@@ -88,6 +102,20 @@
     "Cache_Type_K": "Q8_0",
     "Cache_Type_V": "Q4_0",
     "Benchmark": "25Tks/s",
+    "Pinned": true,
+    "Supports_Thinking_Toggle": true
+  },
+  "vllm_rocm_qw3": {
+    "Model": "Qwen3.5-9B-AWQ",
+    "Served_Name": "qwen3.5-9b",
+    "Backend": "vLLM",
+    "Quant": "AWQ W4A16",
+    "Runtime": "rocm",
+    "Arch": "Dense",
+    "Context": "64k",
+    "Cache_Type_K": "FP16",
+    "Cache_Type_V": "FP16",
+    "Benchmark": "70Tks/s",
     "Pinned": true,
     "Supports_Thinking_Toggle": true
   },
