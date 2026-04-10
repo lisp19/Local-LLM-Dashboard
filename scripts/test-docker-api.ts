@@ -1,5 +1,3 @@
-import http from 'http';
-
 async function runTests() {
   console.log('Testing /api/docker endpoint...');
   const res = await fetch('http://localhost:3000/api/docker', {
