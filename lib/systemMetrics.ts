@@ -40,7 +40,33 @@ export interface ContainerMetrics {
   ports: string;
   cpuPercent: string;
   memUsage: string;
+  memUsedRaw: number;
   gpus: string[];
+}
+
+// 解析 docker stats 的内存字符串 (如 "7.817GiB / 125.4GiB")
+function parseMemBytes(memStr: string): number {
+  if (!memStr) return 0;
+  const usedPart = memStr.split('/')[0].trim();
+  const match = usedPart.match(/^([0-9.]+)\s*([a-zA-Z]*)$/);
+  if (!match) return 0;
+
+  const value = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+
+  const units: Record<string, number> = {
+    'b': 1,
+    'kib': 1024,
+    'mib': 1024 * 1024,
+    'gib': 1024 * 1024 * 1024,
+    'tib': 1024 * 1024 * 1024 * 1024,
+    'kb': 1000,
+    'mb': 1000 * 1000,
+    'gb': 1000 * 1000 * 1000,
+    'tb': 1000 * 1000 * 1000 * 1000
+  };
+
+  return value * (units[unit] || 1);
 }
 
 export interface ModelConfig {
@@ -255,6 +281,7 @@ export async function getDockerContainers(): Promise<ContainerMetrics[]> {
         ports: c.Ports,
         cpuPercent: stat.CPUPerc || '0.00%',
         memUsage: stat.MemUsage || '0B / 0B',
+        memUsedRaw: parseMemBytes(stat.MemUsage),
         gpus: gpus,
       });
     }
