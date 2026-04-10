@@ -601,7 +601,7 @@ export default function DashboardPage() {
                 <Button
                   size="small"
                   type="text"
-                  icon={<CodeOutlined />}
+                  icon={<CodeOutlined style={{ transform: 'scaleX(1.2) scaleY(0.9)', display: 'inline-block' }} />}
                   className="text-slate-400 hover:text-blue-600 ml-1"
                   onClick={() => setIsWebShellOpen(true)}
                   title="Open WebShell"
