@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const { Client } = require('ssh2');
 const fs = require('fs');
 const path = require('path');
+const { consumeToken } = require('./lib/webshell-tokens');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -38,7 +39,12 @@ app.prepare().then(() => {
       fs.appendFileSync(auditLogPath, `[${timestamp}] ${message}\n`);
     };
 
-    socket.on('init', ({ username, privateKey }) => {
+    socket.on('init', ({ username, privateKey, token }) => {
+      if (!consumeToken(token)) {
+        logAudit(`Rejected unauthorized init attempt (invalid/expired token)`);
+        socket.emit('error', 'Unauthorized: invalid or expired token');
+        return;
+      }
       logAudit(`Connection attempt for user: ${username}`);
       sshClient = new Client();
 

@@ -21,11 +21,13 @@ export default function WebShellModal({ open, onClose }: WebShellModalProps) {
   const [username, setUsername] = useState('');
   const [privateKeyStr, setPrivateKeyStr] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [authToken, setAuthToken] = useState('');
 
   const terminalRef = useRef<HTMLDivElement>(null);
   const termInstance = useRef<Terminal | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   // Cleanup on close
   useEffect(() => {
@@ -34,11 +36,12 @@ export default function WebShellModal({ open, onClose }: WebShellModalProps) {
       setPassword('');
       setUsername('');
       setPrivateKeyStr('');
+      setAuthToken('');
       if (socketRef.current) socketRef.current.disconnect();
       if (termInstance.current) {
-        const term = termInstance.current as Terminal & { _resizeCleanup?: () => void };
-        if (term._resizeCleanup) term._resizeCleanup();
-        term.dispose();
+        resizeCleanupRef.current?.();
+        resizeCleanupRef.current = null;
+        termInstance.current.dispose();
       }
       termInstance.current = null;
       socketRef.current = null;
@@ -53,7 +56,9 @@ export default function WebShellModal({ open, onClose }: WebShellModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
       });
+      const data = await res.json();
       if (res.ok) {
+        setAuthToken(data.token);
         setStep(1);
       } else {
         message.error('Invalid password');
@@ -70,85 +75,70 @@ export default function WebShellModal({ open, onClose }: WebShellModalProps) {
       message.error('Username and Private Key are required');
       return;
     }
-
     setStep(2);
     setIsConnecting(true);
-
-    // Initialize Terminal after a short delay to ensure DOM is ready
-    setTimeout(() => {
-      if (!terminalRef.current) return;
-
-      const term = new Terminal({
-        cursorBlink: true,
-        theme: { background: '#1e1e1e' }
-      });
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      term.open(terminalRef.current);
-      fitAddon.fit();
-
-      termInstance.current = term;
-      fitAddonRef.current = fitAddon;
-
-      const socket = io();
-      socketRef.current = socket;
-
-      socket.on('connect', () => {
-        socket.emit('init', { username, privateKey: privateKeyStr });
-      });
-
-      socket.on('ready', () => {
-        setIsConnecting(false);
-        term.focus();
-      });
-
-      socket.on('data', (data: string) => {
-        term.write(data);
-      });
-
-      socket.on('error', (err: string) => {
-        term.write(`\r\n\x1b[31m${err}\x1b[0m\r\n`);
-        setIsConnecting(false);
-      });
-
-      socket.on('close', () => {
-        term.write('\r\n\x1b[33mConnection closed.\x1b[0m\r\n');
-      });
-
-      term.onData((data) => {
-        socket.emit('data', data);
-      });
-
-      const handleResize = () => {
-        if (fitAddonRef.current) {
-          fitAddonRef.current.fit();
-        }
-        if (socketRef.current && termInstance.current) {
-          socketRef.current.emit('resize', {
-            cols: termInstance.current.cols,
-            rows: termInstance.current.rows
-          });
-        }
-      };
-
-      window.addEventListener('resize', handleResize);
-
-      // Store cleanup reference on the terminal instance
-      (term as Terminal & { _resizeCleanup?: () => void })._resizeCleanup = () => {
-        window.removeEventListener('resize', handleResize);
-      };
-    }, 100);
   };
 
-  // Cleanup resize listener when terminal is disposed
+  // Initialize terminal when step reaches 2
   useEffect(() => {
-    return () => {
-      const term = termInstance.current as (Terminal & { _resizeCleanup?: () => void }) | null;
-      if (term?._resizeCleanup) {
-        term._resizeCleanup();
+    if (step !== 2 || !terminalRef.current) return;
+
+    const term = new Terminal({
+      cursorBlink: true,
+      theme: { background: '#1e1e1e' }
+    });
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    fitAddon.fit();
+
+    termInstance.current = term;
+    fitAddonRef.current = fitAddon;
+
+    const socket = io();
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('init', { username, privateKey: privateKeyStr, token: authToken });
+    });
+
+    socket.on('ready', () => {
+      setIsConnecting(false);
+      term.focus();
+    });
+
+    socket.on('data', (data: string) => {
+      term.write(data);
+    });
+
+    socket.on('error', (err: string) => {
+      term.write(`\r\n\x1b[31m${err}\x1b[0m\r\n`);
+      setIsConnecting(false);
+    });
+
+    socket.on('close', () => {
+      term.write('\r\n\x1b[33mConnection closed.\x1b[0m\r\n');
+    });
+
+    term.onData((data) => {
+      socket.emit('data', data);
+    });
+
+    const handleResize = () => {
+      if (fitAddonRef.current) fitAddonRef.current.fit();
+      if (socketRef.current && termInstance.current) {
+        socketRef.current.emit('resize', {
+          cols: termInstance.current.cols,
+          rows: termInstance.current.rows
+        });
       }
     };
-  }, []);
+
+    window.addEventListener('resize', handleResize);
+    resizeCleanupRef.current = () => window.removeEventListener('resize', handleResize);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const handleKeyUpload = (file: File) => {
     const reader = new FileReader();
