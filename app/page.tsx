@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
 import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
 import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled } from '@ant-design/icons';
+import { DockerIcon } from '../components/icons/DockerIcon';
 import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
 import DiskUsageModal from '../components/DiskUsageModal';
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
@@ -748,7 +749,7 @@ export default function DashboardPage() {
                                 <Button
                                     type="default"
                                     size="small"
-                                    icon={<SettingOutlined />}
+                                    icon={<DockerIcon />}
                                     className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105 text-slate-600 border-slate-300"
                                     onClick={() => openDockerManagement(runtime.id, runtime.name)}
                                     title="Docker Management (Logs, Inspect, Restart)"
@@ -1108,7 +1109,7 @@ export default function DashboardPage() {
              onMouseOver={() => { if (dragDisabled) setDragDisabled(false); }}
              onMouseOut={() => { setDragDisabled(true); }}
           >
-            <SettingOutlined className="text-slate-500" />
+            <DockerIcon className="text-slate-500" />
             <span>Docker Management: {dockerTarget?.name}</span>
           </div>
         }
