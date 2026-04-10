@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
-import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
+import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs, ConfigProvider } from 'antd';
 import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled, CodeOutlined } from '@ant-design/icons';
 import { DockerIcon } from '../components/icons/DockerIcon';
 import WebShellModal from '../components/WebShellModal';
@@ -598,15 +598,19 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <DesktopOutlined className="text-slate-400" />
                 <Title level={5} style={{ margin: 0, fontSize: '14px' }}>Host System & GPUs</Title>
-                <Button
-                  size="small"
-                  icon={<CodeOutlined style={{ transform: 'scaleX(1.1) scaleY(0.9)', display: 'inline-block' }} />}
-                  className="ml-2 px-2 text-[11px] font-medium flex items-center shadow-sm transition-all hover:scale-105 text-violet-600 border-violet-200 bg-violet-50/30 hover:bg-violet-50"
-                  onClick={() => setIsWebShellOpen(true)}
-                  title="Open WebShell"
-                >
-                  SSH 连接
-                </Button>
+                <ConfigProvider theme={{ token: { colorPrimary: '#7c3aed' } }}>
+                  <Button
+                    type="primary"
+                    ghost
+                    size="small"
+                    icon={<CodeOutlined style={{ transform: 'scaleX(1.1) scaleY(0.9)', display: 'inline-block' }} />}
+                    className="ml-2 px-2 text-[11px] font-medium flex items-center shadow-sm transition-all hover:scale-105"
+                    onClick={() => setIsWebShellOpen(true)}
+                    title="Open WebShell"
+                  >
+                    SSH 连接
+                  </Button>
+                </ConfigProvider>
               </div>
               <Button 
                 size="small" 
@@ -758,16 +762,19 @@ export default function DashboardPage() {
                                 >
                                     API Test
                                 </Button>
-                                <Button
-                                    type="default"
-                                    size="small"
-                                    icon={<DockerIcon />}
-                                    className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105 text-emerald-600 border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50"
-                                    onClick={() => openDockerManagement(runtime.id, runtime.name)}
-                                    title="Docker Management (Logs, Inspect, Restart)"
-                                >
-                                    Docker
-                                </Button>
+                                <ConfigProvider theme={{ token: { colorPrimary: '#059669' } }}>
+                                  <Button
+                                      type="primary"
+                                      ghost
+                                      size="small"
+                                      icon={<DockerIcon />}
+                                      className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105"
+                                      onClick={() => openDockerManagement(runtime.id, runtime.name)}
+                                      title="Docker Management (Logs, Inspect, Restart)"
+                                  >
+                                      Docker
+                                  </Button>
+                                </ConfigProvider>
                                 {(() => {
                                   const portMatch = runtime.ports?.match(/(\d+)->/);                              
                                   const p = portMatch ? portMatch[1] : null;
