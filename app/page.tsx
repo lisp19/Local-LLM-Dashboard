@@ -745,6 +745,16 @@ export default function DashboardPage() {
                                 >
                                     API Test
                                 </Button>
+                                <Button
+                                    type="default"
+                                    size="small"
+                                    icon={<SettingOutlined />}
+                                    className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105 text-slate-600 border-slate-300"
+                                    onClick={() => openDockerManagement(runtime.id, runtime.name)}
+                                    title="Docker Management (Logs, Inspect, Restart)"
+                                >
+                                    Docker
+                                </Button>
                                 {(() => {
                                   const portMatch = runtime.ports?.match(/(\d+)->/);                              
                                   const p = portMatch ? portMatch[1] : null;
