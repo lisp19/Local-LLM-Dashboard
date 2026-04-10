@@ -1,7 +1,11 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
+const { Client } = require('ssh2');
+const fs = require('fs');
+const path = require('path');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -25,10 +29,69 @@ app.prepare().then(() => {
   const io = new Server(server);
 
   io.on('connection', (socket) => {
-    console.log('Client connected to WebShell socket');
-    
+    let sshClient = null;
+    let sshStream = null;
+    const auditLogPath = path.join(process.cwd(), 'webshell-audit.log');
+
+    const logAudit = (message) => {
+      const timestamp = new Date().toISOString();
+      fs.appendFileSync(auditLogPath, `[${timestamp}] ${message}\n`);
+    };
+
+    socket.on('init', ({ username, privateKey }) => {
+      logAudit(`Connection attempt for user: ${username}`);
+      sshClient = new Client();
+
+      sshClient.on('ready', () => {
+        logAudit(`SSH Connection successful for user: ${username}`);
+        socket.emit('ready');
+        
+        sshClient.shell((err, stream) => {
+          if (err) {
+            logAudit(`Shell error: ${err.message}`);
+            socket.emit('error', 'Shell error: ' + err.message);
+            return;
+          }
+          sshStream = stream;
+
+          stream.on('close', () => {
+            logAudit('SSH Stream closed');
+            sshClient.end();
+            socket.emit('close');
+          }).on('data', (data) => {
+            logAudit(`[OUT] ${data.toString('utf-8').replace(/\r?\n/g, '\\n')}`);
+            socket.emit('data', data.toString('utf-8'));
+          });
+        });
+      }).on('error', (err) => {
+        logAudit(`SSH Connection error: ${err.message}`);
+        socket.emit('error', 'SSH Connection Error: ' + err.message);
+      }).connect({
+        host: '127.0.0.1',
+        port: 22,
+        username: username,
+        privateKey: privateKey
+      });
+    });
+
+    socket.on('data', (data) => {
+      if (sshStream) {
+        logAudit(`[IN] ${data.replace(/\r?\n/g, '\\n')}`);
+        sshStream.write(data);
+      }
+    });
+
+    socket.on('resize', ({ cols, rows }) => {
+      if (sshStream) {
+        sshStream.setWindow(rows, cols, 0, 0);
+      }
+    });
+
     socket.on('disconnect', () => {
-      console.log('Client disconnected');
+      logAudit('WebSocket client disconnected');
+      if (sshClient) {
+        sshClient.end();
+      }
     });
   });
 
