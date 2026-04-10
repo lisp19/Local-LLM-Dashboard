@@ -1,5 +1,5 @@
-import React from 'react';
-import Icon from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import Icon, { ContainerOutlined } from '@ant-design/icons';
 import type { CustomIconComponentProps } from '@ant-design/icons/lib/components/Icon';
 
 const DockerSvg = () => (
@@ -23,6 +23,23 @@ const DockerSvg = () => (
   </svg>
 );
 
-export const DockerIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={DockerSvg} {...props} />
-);
+export const DockerIcon = (props: Partial<CustomIconComponentProps>) => {
+  const [hasLogo, setHasLogo] = useState(true);
+
+  useEffect(() => {
+    // 检查本地是否存在 docker-icon.svg 文件
+    fetch('/docker-icon.svg', { method: 'HEAD' })
+      .then((res) => {
+        if (!res.ok) setHasLogo(false);
+      })
+      .catch(() => setHasLogo(false));
+  }, []);
+
+  if (!hasLogo) {
+    return <ContainerOutlined {...props} />;
+  }
+
+  return (
+    <Icon component={DockerSvg} {...props} />
+  );
+};
