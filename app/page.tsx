@@ -600,12 +600,13 @@ export default function DashboardPage() {
                 <Title level={5} style={{ margin: 0, fontSize: '14px' }}>Host System & GPUs</Title>
                 <Button
                   size="small"
-                  type="text"
-                  icon={<CodeOutlined style={{ transform: 'scaleX(1.2) scaleY(0.9)', display: 'inline-block' }} />}
-                  className="text-slate-400 hover:text-blue-600 ml-1"
+                  icon={<CodeOutlined style={{ transform: 'scaleX(1.1) scaleY(0.9)', display: 'inline-block' }} />}
+                  className="ml-2 px-2 text-[11px] font-medium flex items-center shadow-sm transition-all hover:scale-105 text-slate-600 border-slate-200 bg-white"
                   onClick={() => setIsWebShellOpen(true)}
                   title="Open WebShell"
-                />
+                >
+                  SSH 连接
+                </Button>
               </div>
               <Button 
                 size="small" 
