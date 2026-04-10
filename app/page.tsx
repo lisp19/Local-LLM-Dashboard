@@ -601,7 +601,7 @@ export default function DashboardPage() {
                 <Button
                   size="small"
                   icon={<CodeOutlined style={{ transform: 'scaleX(1.1) scaleY(0.9)', display: 'inline-block' }} />}
-                  className="ml-2 px-2 text-[11px] font-medium flex items-center shadow-sm transition-all hover:scale-105 text-slate-600 border-slate-200 bg-white"
+                  className="ml-2 px-2 text-[11px] font-medium flex items-center shadow-sm transition-all hover:scale-105 text-violet-600 border-violet-200 bg-violet-50/30 hover:bg-violet-50"
                   onClick={() => setIsWebShellOpen(true)}
                   title="Open WebShell"
                 >
@@ -762,7 +762,7 @@ export default function DashboardPage() {
                                     type="default"
                                     size="small"
                                     icon={<DockerIcon />}
-                                    className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105 text-slate-600 border-slate-300"
+                                    className="ml-2 px-2 text-xs font-medium shadow-sm transition-all hover:scale-105 text-emerald-600 border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50"
                                     onClick={() => openDockerManagement(runtime.id, runtime.name)}
                                     title="Docker Management (Logs, Inspect, Restart)"
                                 >
