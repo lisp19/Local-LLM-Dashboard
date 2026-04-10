@@ -2,8 +2,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
 import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled } from '@ant-design/icons';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled, CodeOutlined } from '@ant-design/icons';
 import { DockerIcon } from '../components/icons/DockerIcon';
+import WebShellModal from '../components/WebShellModal';
 import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
 import DiskUsageModal from '../components/DiskUsageModal';
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
@@ -67,7 +68,9 @@ export default function DashboardPage() {
     });
   };
   
-  // Benchmark State
+  // WebShell State
+  const [isWebShellOpen, setIsWebShellOpen] = useState(false);
+
   // Docker Management State
   const [isDockerModalOpen, setIsDockerModalOpen] = useState(false);
   const [dockerTarget, setDockerTarget] = useState<{ id: string; name: string } | null>(null);
@@ -595,6 +598,14 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <DesktopOutlined className="text-slate-400" />
                 <Title level={5} style={{ margin: 0, fontSize: '14px' }}>Host System & GPUs</Title>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<CodeOutlined />}
+                  className="text-slate-400 hover:text-blue-600 ml-1"
+                  onClick={() => setIsWebShellOpen(true)}
+                  title="Open WebShell"
+                />
               </div>
               <Button 
                 size="small" 
@@ -1200,6 +1211,11 @@ export default function DashboardPage() {
       <DiskUsageModal 
         open={isDiskModalOpen} 
         onClose={() => setIsDiskModalOpen(false)} 
+      />
+
+      <WebShellModal
+        open={isWebShellOpen}
+        onClose={() => setIsWebShellOpen(false)}
       />
     </div>
   );
