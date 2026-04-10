@@ -35,7 +35,11 @@ export default function WebShellModal({ open, onClose }: WebShellModalProps) {
       setUsername('');
       setPrivateKeyStr('');
       if (socketRef.current) socketRef.current.disconnect();
-      if (termInstance.current) termInstance.current.dispose();
+      if (termInstance.current) {
+        const term = termInstance.current as Terminal & { _resizeCleanup?: () => void };
+        if (term._resizeCleanup) term._resizeCleanup();
+        term.dispose();
+      }
       termInstance.current = null;
       socketRef.current = null;
     }
