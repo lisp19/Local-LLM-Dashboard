@@ -45,3 +45,6 @@ webshell-password.txt
 
 # webshell audit logs
 webshell-audit.log
+
+# docker assets
+public/docker-icon.svg
