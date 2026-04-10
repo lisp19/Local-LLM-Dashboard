@@ -218,7 +218,7 @@ export async function getDockerContainers(): Promise<ContainerMetrics[]> {
     const statsLines = statsStdout.trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
     const statsMap = new Map();
     for (const stat of statsLines) {
-      statsMap.set(stat.Container, stat);
+      statsMap.set(stat.ID, stat);
     }
 
     // Inspect each to get GPUs (optional step, parsing HostConfig.DeviceRequests)
