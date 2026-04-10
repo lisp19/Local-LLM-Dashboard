@@ -63,13 +63,18 @@ const calculateVisualWidth = (usedRaw: number, memCeiling: number, totalMem: num
 
   const s = hatSigma(rRel);
 
-  if (rSys <= 0.5) {
-    // Normal Mode: 5% floor, 95% ceiling
-    return (0.05 + 0.90 * s) * 100;
-  } else {
-    // Warning Mode: 15% floor, 100% ceiling
-    return (0.15 + 0.85 * s) * 100;
+  const wSigmoid = rSys <= 0.5
+    ? (0.05 + 0.90 * s) * 100
+    : (0.15 + 0.85 * s) * 100;
+
+  if (rSys < 0.5) {
+    // Low-load filter: suppress width when system usage is low
+    const x = 2 * rSys;
+    const l = 0.3 * x + 0.7 * (Math.log(1 + 9 * x) / Math.log(10));
+    return wSigmoid * l;
   }
+
+  return wSigmoid;
 };
 
 const { Title, Text } = Typography;
