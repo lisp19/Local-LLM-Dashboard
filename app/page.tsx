@@ -48,6 +48,30 @@ const DEFAULT_BENCH_PROMPTS = [
   "A comprehensive 1000-word guide to indoor succulent care and pests."
 ].join('\n');
 
+const calculateVisualWidth = (usedRaw: number, memCeiling: number, totalMem: number) => {
+  if (!usedRaw || !memCeiling || !totalMem) return 0;
+
+  const rRel = usedRaw / memCeiling;
+  const rSys = usedRaw / totalMem;
+
+  // Normalized Sigmoid: maps [0, 1] to [0, 1] with S-curve
+  const k = 10;
+  const sigma = (x: number) => 1 / (1 + Math.exp(-k * (x - 0.5)));
+  const sigma0 = sigma(0);
+  const sigma1 = sigma(1);
+  const hatSigma = (x: number) => (sigma(x) - sigma0) / (sigma1 - sigma0);
+
+  const s = hatSigma(rRel);
+
+  if (rSys <= 0.5) {
+    // Normal Mode: 5% floor, 95% ceiling
+    return (0.05 + 0.90 * s) * 100;
+  } else {
+    // Warning Mode: 15% floor, 100% ceiling
+    return (0.15 + 0.85 * s) * 100;
+  }
+};
+
 const { Title, Text } = Typography;
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
@@ -727,11 +751,20 @@ export default function DashboardPage() {
                 if (!aPinned && bPinned) return 1;
                 return 0;
               });
+
+              // 计算所有容器中的最大内存占用，用于归一化显示
+              const maxMemUsed = Math.max(...sortedContainers.map(c => c.runtime.memUsedRaw || 0), 0);
+              // 设定最小基准为 8GB，防止在占用极小时条长波动过大
+              const memCeiling = Math.max(maxMemUsed, 8 * 1024 * 1024 * 1024);
+              const totalSystemMem = data?.system.memory.total || 1;
               
               return (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {sortedContainers.map(({ runtime, modelConfig }) => {
                     const isPinned = pinnedNames.has(runtime.name) || modelConfig?.Pinned === true;
+                    const visualWidth = calculateVisualWidth(runtime.memUsedRaw, memCeiling, totalSystemMem);
+                    const isWarning = (runtime.memUsedRaw / totalSystemMem) > 0.5;
+                    
                     return (
                       <Card key={runtime.id} bordered={false} style={{ borderRadius: 16 }} styles={{ body: { padding: '14px' } }} className={`shadow-sm bg-white transition-shadow ${isPinned ? 'border-2 border-blue-400 shadow-blue-100' : 'border border-slate-200 hover:shadow-md'}`}>
                         <div className="flex flex-col items-stretch gap-2.5">
@@ -824,7 +857,14 @@ export default function DashboardPage() {
                               </div>
                               <div>
                                 <div className="flex justify-between text-xs mb-1 font-medium"><span className="text-slate-500">MEM ({runtime.memUsage})</span></div>
-                                <Progress percent={parseFloat(runtime.memUsage.split('/')[0]) ? 50 : 0} showInfo={false} size="small" strokeColor="#52c41a" trailColor="#e2e8f0" status="active" />
+                                <Progress 
+                                  percent={visualWidth} 
+                                  showInfo={false} 
+                                  size="small" 
+                                  strokeColor={isWarning ? "#ff4d4f" : "#52c41a"} 
+                                  trailColor="#e2e8f0" 
+                                  status={isWarning ? "exception" : "active"} 
+                                />
                               </div>
                             </div>
                           </div>
