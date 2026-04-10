@@ -67,6 +67,24 @@ export default function DashboardPage() {
   };
   
   // Benchmark State
+  // Docker Management State
+  const [isDockerModalOpen, setIsDockerModalOpen] = useState(false);
+  const [dockerTarget, setDockerTarget] = useState<{ id: string; name: string } | null>(null);
+  const [dockerLogs, setDockerLogs] = useState('');
+  const [isStreamingLogs, setIsStreamingLogs] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [dockerInspectData, setDockerInspectData] = useState<any>(null);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [dockerLogs]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDiskModalOpen, setIsDiskModalOpen] = useState(false);
   const [benchmarkContainer, setBenchmarkContainer] = useState<BenchmarkContainer | null>(null);
@@ -105,6 +123,98 @@ export default function DashboardPage() {
   const [allImages, setAllImages] = useState<Record<string, string | null>>({});
   const [benchmarkMode, setBenchmarkMode] = useState<'python' | 'frontend' | null>(null);
   const [benchmarkLogs, setBenchmarkLogs] = useState('');
+
+  const openDockerManagement = (id: string, name: string) => {
+    setDockerTarget({ id, name });
+    setDockerLogs('');
+    setDockerInspectData(null);
+    setIsDockerModalOpen(true);
+    fetchInspectData(id);
+    startLogStream(id);
+  };
+
+  const closeDockerManagement = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsDockerModalOpen(false);
+    setIsStreamingLogs(false);
+  };
+
+  const fetchInspectData = async (id: string) => {
+    try {
+      const res = await fetch('/api/docker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'inspect', containerId: id })
+      });
+      const data = await res.json();
+      if (data.data) setDockerInspectData(data.data[0]);
+    } catch (e) {
+      console.error('Failed to fetch inspect data', e);
+    }
+  };
+
+  const startLogStream = async (id: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setDockerLogs('');
+    setIsStreamingLogs(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const res = await fetch('/api/docker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logs', containerId: id }),
+        signal: controller.signal
+      });
+
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          setDockerLogs(prev => prev + decoder.decode(value, { stream: true }));
+        }
+      }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        setDockerLogs(prev => prev + `\n\n[Stream Error: ${e.message}]`);
+      }
+    } finally {
+      setIsStreamingLogs(false);
+    }
+  };
+
+  const restartContainer = async () => {
+    if (!dockerTarget) return;
+    setIsRestarting(true);
+    try {
+      const res = await fetch('/api/docker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restart', containerId: dockerTarget.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Container restarted successfully');
+      } else {
+        alert(`Failed to restart: ${data.error}`);
+      }
+    } catch {
+      alert('Error restarting container');
+    } finally {
+      setIsRestarting(false);
+    }
+  };
 
   const handleOpenBenchmark = (runtime: ContainerMetrics, modelConfig: Record<string, string | number | boolean> | null) => {
     const portMatch = runtime.ports?.match(/:(\d+)->/);
@@ -974,6 +1084,101 @@ export default function DashboardPage() {
                       <InfoCircleOutlined className="mr-1" />
                       Concurrency test sends N requests in parallel. &quot;Sys Total TPS&quot; is the overall throughput of all requests.
                     </Text>
+                </div>
+              </div>
+            )
+          }
+        ]} />
+      </Modal>
+
+      <Modal
+        title={
+          <div 
+             className="flex items-center gap-2 cursor-move select-none w-full"
+             onMouseOver={() => { if (dragDisabled) setDragDisabled(false); }}
+             onMouseOut={() => { setDragDisabled(true); }}
+          >
+            <SettingOutlined className="text-slate-500" />
+            <span>Docker Management: {dockerTarget?.name}</span>
+          </div>
+        }
+        open={isDockerModalOpen}
+        onCancel={closeDockerManagement}
+        footer={null}
+        width={850}
+        destroyOnClose
+        mask={false}
+        wrapClassName="non-blocking-modal-wrap"
+        modalRender={(modal) => (
+          <Draggable
+            disabled={dragDisabled}
+            bounds={bounds}
+            nodeRef={draggleRef}
+            onStart={(event, uiData) => onDragStart(event, uiData)}
+          >
+            <div ref={draggleRef}>{modal}</div>
+          </Draggable>
+        )}
+      >
+        <Tabs defaultActiveKey="1" items={[
+          {
+            key: '1',
+            label: 'Logs',
+            children: (
+              <div className="pt-2">
+                <div className="flex justify-between mb-2">
+                  <Text strong>Live Logs</Text>
+                  <Space>
+                    <Button size="small" onClick={() => setDockerLogs('')}>Clear</Button>
+                    <Button size="small" type={isStreamingLogs ? 'default' : 'primary'} onClick={() => isStreamingLogs ? abortControllerRef.current?.abort() : dockerTarget && startLogStream(dockerTarget.id)}>
+                      {isStreamingLogs ? 'Stop Stream' : 'Resume Stream'}
+                    </Button>
+                  </Space>
+                </div>
+                <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-slate-300 font-mono text-xs leading-relaxed overflow-y-auto h-[400px] whitespace-pre-wrap break-all">
+                  {dockerLogs || <span className="text-slate-600 italic">Waiting for logs...</span>}
+                  <div ref={logsEndRef} />
+                </div>
+              </div>
+            )
+          },
+          {
+            key: '2',
+            label: 'Inspect',
+            children: (
+              <div className="pt-2">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-xs overflow-y-auto h-[400px]">
+                  {dockerInspectData ? (
+                    <pre>{JSON.stringify(dockerInspectData, null, 2)}</pre>
+                  ) : (
+                    <Spin size="small" />
+                  )}
+                </div>
+              </div>
+            )
+          },
+          {
+            key: '3',
+            label: 'Controls',
+            children: (
+              <div className="pt-2 h-[400px]">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <Text strong className="block mb-1">Restart Container</Text>
+                    <Text type="secondary" className="text-xs">Restarting the container will cause temporary downtime.</Text>
+                  </div>
+                  <Button 
+                    danger 
+                    type="primary" 
+                    loading={isRestarting} 
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to restart this container?')) {
+                        restartContainer();
+                      }
+                    }}
+                  >
+                    Restart Container
+                  </Button>
                 </div>
               </div>
             )
