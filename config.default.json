@@ -4,5 +4,17 @@
   "openWebUIPort": 53000,
   "vllmApiKey": "vllm-test",
   "pythonPath": "~/miniconda3/envs/kt/bin/python",
-  "benchmarkPlotDir": "~/.config/kanban/benchmarks"
+  "benchmarkPlotDir": "~/.config/kanban/benchmarks",
+  "dispatchers": {
+    "system": { "enabled": true, "intervalMs": 1000, "timeoutMs": 1000, "degradeAfterFailures": 3, "recoverAfterSuccesses": 2, "apiProbeIntervalMs": 5000 },
+    "docker": { "enabled": true, "intervalMs": 1500, "timeoutMs": 5000, "degradeAfterFailures": 3, "recoverAfterSuccesses": 2, "apiProbeIntervalMs": 5000 },
+    "gpu": { "enabled": true, "intervalMs": 1500, "timeoutMs": 2000, "degradeAfterFailures": 3, "recoverAfterSuccesses": 2, "apiProbeIntervalMs": 5000 },
+    "modelConfig": { "enabled": true, "intervalMs": 5000, "timeoutMs": 1000, "degradeAfterFailures": 2, "recoverAfterSuccesses": 1, "apiProbeIntervalMs": 10000 }
+  },
+  "agent": {
+    "allowExternalReport": true,
+    "reportToken": "change-me"
+  },
+  "snapshot": { "maxAgeMs": 5000 },
+  "health": { "retentionLimit": 200 }
 }

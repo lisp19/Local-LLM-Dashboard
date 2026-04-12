@@ -81,7 +81,89 @@ The dashboard uses a priority-ordered configuration system (`~/.config/kanban/` 
 ## 🛠 Tech Stack
 - **Dashboard**: Next.js 15, Ant Design 5, Tailwind CSS
 - **Benchmarking**: Python 3.11+, Matplotlib, OpenAI SDK
-- **Monitoring**: Docker Stats API, Node.js OS/Child Process
+- **Monitoring**: Docker Stats API, Node.js OS/Child Process, message-driven dispatcher runtime
+
+## 🔄 Monitoring Architecture
+
+The dashboard uses a **message-driven monitoring runtime** that runs background dispatchers and exposes snapshots over HTTP or socket.io.
+
+### Protocol Modes
+
+Set the client-side transport with an environment variable:
+
+| Variable | Values | Default |
+|----------|--------|---------|
+| `NEXT_PUBLIC_MONITOR_PROTOCOL_MODE` | `legacy` \| `modern` | `legacy` |
+
+- **`legacy`**: Client polls `/api/metrics` and `/api/system-health` every 2 seconds (HTTP SWR-style).
+- **`modern`**: Client connects via socket.io, emitting `monitor:init` and receiving live `monitor:snapshot` / `monitor:event` pushes.
+
+### Monitoring Runtime
+
+On startup, `server.ts` initialises a singleton monitoring runtime that runs four background dispatchers:
+
+| Dispatcher | Primary | Fallback |
+|------------|---------|----------|
+| System | `/proc` + `os` module | `top` / `vmstat` CLI |
+| Docker | Dockerode API | `docker stats` CLI |
+| GPU | `nvidia-smi` / `rocm-smi` | graceful skip |
+| Model Config | `model-config.json` watch | static snapshot |
+
+Each dispatcher publishes `MetricEnvelope` messages to an in-memory ring-buffer bus. Projectors subscribe to those messages to maintain `DashboardData` and `HealthSnapshot` objects.
+
+### Health Center
+
+Navigate to `/health` (link in dashboard header) for a read-only view of:
+
+- Dispatcher state, mode (primary/fallback), latency, and error counts
+- Message queue stats (topics, consumers, dropped messages)
+- Connected external agents
+- Recent health events (degraded / recovered / error)
+
+### External Agent Reporting
+
+Remote nodes can push metric events to the local runtime:
+
+**HTTP:**
+```bash
+curl -X POST http://localhost:3000/api/agent/report \
+  -H 'Content-Type: application/json' \
+  -H 'x-agent-token: change-me' \
+  -d '[{ ...MetricEnvelope }]'
+```
+
+**Socket.io:**
+```js
+socket.emit('agent:init', { token: 'change-me' });
+socket.emit('agent:report', metricEnvelope);
+```
+
+Configure agent reporting in `config.json`:
+```json
+{
+  "agent": {
+    "allowExternalReport": true,
+    "reportToken": "change-me"
+  }
+}
+```
+
+### Verification on Port 3001
+
+```bash
+# Legacy mode
+NEXT_PUBLIC_MONITOR_PROTOCOL_MODE=legacy PORT=3001 npm run dev
+
+# Modern mode
+NEXT_PUBLIC_MONITOR_PROTOCOL_MODE=modern PORT=3001 npm run dev
+
+# Smoke tests
+curl -s http://localhost:3001/api/system-health
+curl -s -X POST http://localhost:3001/api/agent/report \
+  -H 'Content-Type: application/json' \
+  -H 'x-agent-token: change-me' \
+  -d '[]'
+```
 
 ## 📝 License
 MIT

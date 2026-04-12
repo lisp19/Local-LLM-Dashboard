@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loadAppConfig } from '../../../lib/appConfig';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
 export const dynamic = 'force-dynamic';
-
-const CONFIG_PATH = path.join(os.homedir(), '.config/kanban/config.json');
 
 function expandHome(pathStr: string): string {
   if (pathStr.startsWith('~')) {
@@ -13,17 +12,6 @@ function expandHome(pathStr: string): string {
   }
   return pathStr;
 }
-
-function getPlotDir() {
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-      if (config.benchmarkPlotDir) return expandHome(config.benchmarkPlotDir);
-    }
-  } catch { }
-  return path.join(os.homedir(), '.config/kanban/benchmarks');
-}
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,7 +22,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing filename' }, { status: 400 });
     }
 
-    const plotDir = getPlotDir();
+    const config = await loadAppConfig();
+    const plotDir = config.benchmarkPlotDir
+      ? expandHome(config.benchmarkPlotDir)
+      : path.join(os.homedir(), '.config/kanban/benchmarks');
+
     const filePath = path.join(plotDir, filename);
 
     if (!fs.existsSync(filePath)) {
