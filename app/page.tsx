@@ -5,9 +5,10 @@ import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Mod
 import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled, CodeOutlined } from '@ant-design/icons';
 import { DockerIcon } from '../components/icons/DockerIcon';
 import WebShellModal from '../components/WebShellModal';
-import type { DashboardData, ContainerMetrics } from '../lib/systemMetrics';
+import type { ContainerMetrics } from '../lib/systemMetrics';
 import DiskUsageModal from '../components/DiskUsageModal';
 import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
+import { useMonitorTransport } from '../lib/client-monitor/useMonitorTransport';
 
 
 interface BenchmarkResult {
@@ -82,7 +83,10 @@ const { Title, Text } = Typography;
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function DashboardPage() {
-  const { data, error, isLoading, isValidating } = useSWR<DashboardData>('/api/metrics', fetcher, { refreshInterval: 2000 });
+  const { dashboard: data, status, error: monitorError } = useMonitorTransport();
+  const isLoading = status === 'loading' || status === 'idle';
+  const isValidating = status === 'loading';
+  const error = monitorError ? { message: monitorError } : null;
   const { data: appConfig } = useSWR('/api/app-config', fetcher);
   const [mounted, setMounted] = useState(false);
   const [hostName, setHostName] = useState('127.0.0.1');
