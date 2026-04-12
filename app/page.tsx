@@ -463,7 +463,11 @@ export default function DashboardPage() {
             })
         });
 
-        if (pyRes.ok && pyRes.body) {
+        if (!pyRes.ok) {
+            throw new Error(await pyRes.text());
+        }
+
+        if (pyRes.body) {
             const reader = pyRes.body.getReader();
             const decoder = new TextDecoder();
             let resultData: { 
@@ -541,6 +545,8 @@ export default function DashboardPage() {
                 return;
             }
 
+        } else {
+            throw new Error('Python benchmark response body is empty');
         }
     } catch (e) {
         console.error('Python benchmark failed, falling back to frontend logic:', e);
