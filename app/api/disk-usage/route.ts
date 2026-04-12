@@ -4,7 +4,8 @@ import { promisify } from 'util';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
-import { readFileSync, statSync } from 'fs';
+import { statSync } from 'fs';
+import { loadAppConfig } from '../../../lib/appConfig';
 
 const execFileAsync = promisify(execFile);
 
@@ -16,11 +17,9 @@ function expandHome(pathStr: string): string {
   return pathStr;
 }
 
-function getPinnedDirs(): string[] {
+async function getPinnedDirs(): Promise<string[]> {
   try {
-    const configPath = expandHome('~/.config/kanban/config.json');
-    const content = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(content);
+    const config = await loadAppConfig();
     if (config.diskPinnedDirs && Array.isArray(config.diskPinnedDirs)) {
       return config.diskPinnedDirs;
     }
@@ -37,6 +36,7 @@ interface CacheData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trees: Record<string, any[]>;
   isRefreshing: boolean;
+  refreshPromise: Promise<void> | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,7 +44,8 @@ const globalCache: CacheData = (global as any).__diskCache || {
   lastUpdated: 0,
   overview: null,
   trees: {},
-  isRefreshing: false
+  isRefreshing: false,
+  refreshPromise: null,
 };
 if (process.env.NODE_ENV !== 'production') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,70 +92,79 @@ function parseDuOutput(stdout: string, targetPath: string) {
 }
 
 async function refreshCache() {
-  if (globalCache.isRefreshing) return;
-  globalCache.isRefreshing = true;
+  if (globalCache.refreshPromise) {
+    await globalCache.refreshPromise;
+    return;
+  }
 
-  try {
-    // 1. Get system overall disk usage
-    let systemDisk = { total: '0', used: '0', free: '0', percent: '0%', mount: '/' };
+  globalCache.refreshPromise = (async () => {
+    globalCache.isRefreshing = true;
+
     try {
-      const { stdout } = await execFileAsync('df', ['-h', '/']);
-      const lines = stdout.trim().split('\n');
-      if (lines.length > 1) {
-        const parts = lines[1].trim().split(/\s+/);
-        if (parts.length >= 6) {
-          systemDisk = { total: parts[1], used: parts[2], free: parts[3], percent: parts[4], mount: parts[5] };
+      // 1. Get system overall disk usage
+      let systemDisk = { total: '0', used: '0', free: '0', percent: '0%', mount: '/' };
+      try {
+        const { stdout } = await execFileAsync('df', ['-h', '/']);
+        const lines = stdout.trim().split('\n');
+        if (lines.length > 1) {
+          const parts = lines[1].trim().split(/\s+/);
+          if (parts.length >= 6) {
+            systemDisk = { total: parts[1], used: parts[2], free: parts[3], percent: parts[4], mount: parts[5] };
+          }
+        }
+      } catch (e) {
+        console.error('Failed to get df /:', e);
+      }
+
+      // 2. Get key directories size
+      const keyDirs = (await getPinnedDirs()).map(p => ({ name: p === '~' ? 'Home Directory (~)' : p, path: p }));
+      const dirSizes = [];
+      for (const dir of keyDirs) {
+        const absPath = expandHome(dir.path);
+        try {
+          await fs.access(absPath); // check if exists
+          const { stdout } = await execFileAsync('du', ['-sh', absPath]);
+          const sizeMatch = stdout.trim().match(/^([0-9.,]+[A-Za-z]+)\s+/);
+          const size = sizeMatch ? sizeMatch[1] : 'Unknown';
+          dirSizes.push({
+            name: dir.name,
+            path: absPath,
+            size,
+            isDir: true,
+            isKeyNode: true
+          });
+        } catch {
+          // Skip if doesn't exist or permission denied
         }
       }
-    } catch (e) {
-      console.error('Failed to get df /:', e);
-    }
 
-    // 2. Get key directories size
-    const keyDirs = getPinnedDirs().map(p => ({ name: p === '~' ? 'Home Directory (~)' : p, path: p }));
-    const dirSizes = [];
-    for (const dir of keyDirs) {
-      const absPath = expandHome(dir.path);
-      try {
-        await fs.access(absPath); // check if exists
-        const { stdout } = await execFileAsync('du', ['-sh', absPath]);
-        const sizeMatch = stdout.trim().match(/^([0-9.,]+[A-Za-z]+)\s+/);
-        const size = sizeMatch ? sizeMatch[1] : 'Unknown';
-        dirSizes.push({
-          name: dir.name,
-          path: absPath,
-          size,
-          isDir: true,
-          isKeyNode: true
-        });
-      } catch {
-        // Skip if doesn't exist or permission denied
+      globalCache.overview = {
+        system: systemDisk,
+        keyDirs: dirSizes
+      };
+
+      // 3. Pre-fetch 'tree' for root and pinned directories (max depth 1)
+      const dirsToPrewarm = ['/', ...dirSizes.map(d => d.path)];
+      for (const dir of dirsToPrewarm) {
+        try {
+          await fs.access(dir);
+          const stdout = await safeExecDu(dir);
+          globalCache.trees[dir] = parseDuOutput(stdout, dir);
+        } catch {
+          // Ignore errors for individual tree pre-warming
+        }
       }
+
+      globalCache.lastUpdated = Date.now();
+    } catch (err) {
+      console.error('refreshCache error:', err);
+    } finally {
+      globalCache.isRefreshing = false;
+      globalCache.refreshPromise = null;
     }
+  })();
 
-    globalCache.overview = {
-      system: systemDisk,
-      keyDirs: dirSizes
-    };
-
-    // 3. Pre-fetch 'tree' for root and pinned directories (max depth 1)
-    const dirsToPrewarm = ['/', ...dirSizes.map(d => d.path)];
-    for (const dir of dirsToPrewarm) {
-      try {
-        await fs.access(dir);
-        const stdout = await safeExecDu(dir);
-        globalCache.trees[dir] = parseDuOutput(stdout, dir);
-      } catch {
-        // Ignore errors for individual tree pre-warming
-      }
-    }
-
-    globalCache.lastUpdated = Date.now();
-  } catch (err) {
-    console.error('refreshCache error:', err);
-  } finally {
-    globalCache.isRefreshing = false;
-  }
+  await globalCache.refreshPromise;
 }
 
 // Kick off background cache load on module init
