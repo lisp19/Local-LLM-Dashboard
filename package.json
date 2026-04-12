@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "rm -rf .next-dev && NEXT_DIST_DIR=.next-dev tsx server.ts",
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "eslint",
