@@ -28,21 +28,41 @@ export async function POST(req: NextRequest) {
 
       const stream = new ReadableStream({
         start(controller) {
+          let finished = false;
+
+          const safeClose = () => {
+            if (finished) return;
+            finished = true;
+            controller.close();
+          };
+
+          const safeError = (err: Error) => {
+            if (finished) return;
+            finished = true;
+            controller.error(err);
+          };
+
+          const stopProcess = () => {
+            if (finished) return;
+            finished = true;
+            dockerProcess.kill();
+          };
+
           dockerProcess.stdout.on('data', (chunk) => {
-            controller.enqueue(chunk);
+            if (!finished) controller.enqueue(chunk);
           });
           dockerProcess.stderr.on('data', (chunk) => {
-            controller.enqueue(chunk);
+            if (!finished) controller.enqueue(chunk);
           });
-          dockerProcess.on('close', () => {
-            controller.close();
+          dockerProcess.once('close', () => {
+            safeClose();
           });
-          dockerProcess.on('error', (err) => {
-            controller.error(err);
+          dockerProcess.once('error', (err) => {
+            safeError(err);
           });
 
           req.signal.addEventListener('abort', () => {
-            dockerProcess.kill();
+            stopProcess();
           });
         },
         cancel() {

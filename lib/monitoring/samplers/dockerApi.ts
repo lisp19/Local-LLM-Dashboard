@@ -69,7 +69,7 @@ export async function sampleDockerApi(): Promise<ContainerMetrics[]> {
   const containers = await docker.listContainers({ all: false });
   if (containers.length === 0) return [];
 
-  const metrics: ContainerMetrics[] = await Promise.all(
+  const settled = await Promise.allSettled(
     containers.map(async (c) => {
       const instance = docker.getContainer(c.Id);
       const [statsRaw, gpus] = await Promise.all([
@@ -85,6 +85,7 @@ export async function sampleDockerApi(): Promise<ContainerMetrics[]> {
         if (p.PublicPort) return `${p.PublicPort}->${p.PrivatePort}/${p.Type}`;
         return `${p.PrivatePort}/${p.Type}`;
       }).join(', ');
+      const publishedPort = c.Ports.find((p) => p.PublicPort)?.PublicPort;
 
       return {
         id: c.Id.slice(0, 12),
@@ -92,6 +93,7 @@ export async function sampleDockerApi(): Promise<ContainerMetrics[]> {
         image: c.Image,
         status: c.Status,
         ports,
+        publishedPort: publishedPort ? String(publishedPort) : null,
         cpuPercent,
         memUsage,
         memUsedRaw: memUsed,
@@ -99,6 +101,13 @@ export async function sampleDockerApi(): Promise<ContainerMetrics[]> {
       };
     }),
   );
+
+  const metrics = settled.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+
+  // Preserve the last good snapshot when Docker is temporarily unhealthy.
+  if (metrics.length === 0) {
+    throw new Error('Docker API sampling failed for all running containers');
+  }
 
   return metrics;
 }

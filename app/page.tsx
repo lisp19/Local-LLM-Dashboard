@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
-import { Card, Result, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs, ConfigProvider } from 'antd';
-import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled, CodeOutlined } from '@ant-design/icons';
+import { Card, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs, ConfigProvider } from 'antd';
+import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled, CodeOutlined, CheckCircleFilled, EllipsisOutlined, CloseCircleFilled } from '@ant-design/icons';
 import { DockerIcon } from '../components/icons/DockerIcon';
 import WebShellModal from '../components/WebShellModal';
 import type { ContainerMetrics } from '../lib/systemMetrics';
@@ -82,9 +82,60 @@ const { Title, Text } = Typography;
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
+const CONTAINER_FRESH_MS = 6_000;
+const CONTAINER_STALE_MS = 15_000;
+
+function getContainerSyncState(lastSeenAt: number | null): {
+  color: string;
+  label: string;
+  icon: React.ReactNode;
+} {
+  if (!lastSeenAt) {
+    return { color: '#f59e0b', label: 'Syncing', icon: <EllipsisOutlined /> };
+  }
+
+  const ageMs = Date.now() - lastSeenAt;
+  if (ageMs <= CONTAINER_FRESH_MS) {
+    return { color: '#16a34a', label: 'OK', icon: <CheckCircleFilled /> };
+  }
+  if (ageMs <= CONTAINER_STALE_MS) {
+    return { color: '#f59e0b', label: 'Syncing', icon: <EllipsisOutlined /> };
+  }
+
+  return { color: '#dc2626', label: 'Stale', icon: <CloseCircleFilled /> };
+}
+
+function buildBenchmarkHardwareInfo(
+  data: NonNullable<ReturnType<typeof useMonitorTransport>['dashboard']>,
+  runtime: string,
+): { cpuInfo: string; gpuInfo: string; osInfo: string } {
+  const cpuInfo = data.system.cpuCores
+    ? `${data.system.cpuModel || 'CPU'} (${data.system.cpuCores} cores)`
+    : 'Unknown CPU';
+  const osInfo = data.system.osRelease || 'Linux';
+
+  const normalizedRuntime = runtime.toLowerCase();
+  const matchingGpus = data.gpus.filter((gpu) => {
+    const name = gpu.name.toLowerCase();
+    if (normalizedRuntime === 'nvidia') {
+      return name.includes('nvidia') || name.includes('geforce') || name.includes('quadro') || name.includes('tesla') || name.includes('rtx');
+    }
+    if (normalizedRuntime === 'rocm' || normalizedRuntime === 'amd' || normalizedRuntime === 'vulkan') {
+      return name.includes('amd') || name.includes('ati') || name.includes('radeon');
+    }
+    return false;
+  });
+
+  const gpuInfo = matchingGpus.length > 0
+    ? `${matchingGpus.length}x ${matchingGpus[0].name} (${matchingGpus[0].memoryTotal})`
+    : '';
+
+  return { cpuInfo, gpuInfo, osInfo };
+}
+
 export default function DashboardPage() {
-  const { dashboard: data, status, error: monitorError } = useMonitorTransport();
-  const isLoading = status === 'loading' || status === 'idle';
+  const { dashboard: data, status, error: monitorError, lastUpdatedAt, containerUpdatedAt } = useMonitorTransport();
+  const isLoading = (status === 'loading' || status === 'idle') && !data;
   const isValidating = status === 'loading';
   const error = monitorError ? { message: monitorError } : null;
   const { data: appConfig } = useSWR('/api/app-config', fetcher);
@@ -254,13 +305,10 @@ export default function DashboardPage() {
   };
 
   const handleOpenBenchmark = (runtime: ContainerMetrics, modelConfig: Record<string, string | number | boolean> | null) => {
-    const portMatch = runtime.ports?.match(/:(\d+)->/);
-    const port = portMatch ? portMatch[1] : null;
-    
     setBenchmarkContainer({
       id: runtime.id,
       name: runtime.name,
-      port: port,
+      port: runtime.publishedPort,
       model: String(modelConfig?.Model || runtime.name),
       servedName: String(modelConfig?.Served_Name || modelConfig?.Model || runtime.name),
       backend: String(modelConfig?.Backend || 'unknown'),
@@ -386,7 +434,7 @@ export default function DashboardPage() {
   };
 
   const runConcurrencyBenchmark = async () => {
-    if (!benchmarkContainer?.port) return;
+    if (!benchmarkContainer?.port || !data) return;
     
     setIsBenchmarking(true);
     if (benchmarkContainer?.id) {
@@ -395,6 +443,7 @@ export default function DashboardPage() {
     setBenchmarkLogs('');
     setBenchmarkMode(null);
     const prompts = benchPrompts.split('\n').filter(p => p.trim());
+    const hardwareInfo = buildBenchmarkHardwareInfo(data, benchmarkContainer.runtime);
     
     // 1. Try Python Benchmark First (w/ SSE Streaming)
     try {
@@ -407,7 +456,10 @@ export default function DashboardPage() {
                 model: benchmarkContainer.servedName,
                 concurrency: concurrency,
                 prompts: prompts.slice(0, 16),
-                runtime: benchmarkContainer.runtime
+                runtime: benchmarkContainer.runtime,
+                cpuInfo: hardwareInfo.cpuInfo,
+                gpuInfo: hardwareInfo.gpuInfo,
+                osInfo: hardwareInfo.osInfo,
             })
         });
 
@@ -602,7 +654,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-4">
           <Badge status={isValidating ? 'processing' : (error ? 'error' : 'success')} text={isValidating ? 'Syncing' : (error ? 'Error' : 'Live')} className="mr-2" />
-          {data && <Text type="secondary">Last updated: {new Date().toLocaleTimeString()}</Text>}
+          {lastUpdatedAt && <Text type="secondary">Last updated: {new Date(lastUpdatedAt).toLocaleTimeString()}</Text>}
           <a href="/health" className="text-slate-500 hover:text-blue-600 text-xs" title="Monitoring Health Center">
             Health Center
           </a>
@@ -619,15 +671,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {isLoading && !data ? (
+      {isLoading ? (
         <div className="flex justify-center flex-col items-center py-20">
           <Spin size="large" />
           <Text className="mt-4">Loading metrics...</Text>
         </div>
-      ) : error ? (
-        <Result status="error" title="Failed to load metrics" subTitle={error.message} />
       ) : (
         <>
+          {error && (
+            <Card bordered={false} className="shadow-sm bg-amber-50/70 border border-amber-200" style={{ borderRadius: 12 }}>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Text strong className="text-amber-800">Using last known good snapshot</Text>
+                  <div>
+                    <Text type="secondary">{error.message}</Text>
+                  </div>
+                </div>
+                {lastUpdatedAt && <Text type="secondary">Snapshot age: {Math.max(0, Math.round((Date.now() - lastUpdatedAt) / 1000))}s</Text>}
+              </div>
+            </Card>
+          )}
+
           {/* System & Global Metrics */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
@@ -776,6 +840,7 @@ export default function DashboardPage() {
                     const isPinned = pinnedNames.has(runtime.name) || modelConfig?.Pinned === true;
                     const visualWidth = calculateVisualWidth(runtime.memUsedRaw, memCeiling, totalSystemMem);
                     const isWarning = (runtime.memUsedRaw / totalSystemMem) > 0.5;
+                    const syncState = getContainerSyncState(containerUpdatedAt[runtime.id] ?? null);
                     
                     return (
                       <Card key={runtime.id} bordered={false} style={{ borderRadius: 16 }} styles={{ body: { padding: '14px' } }} className={`shadow-sm bg-white transition-shadow ${isPinned ? 'border-2 border-blue-400 shadow-blue-100' : 'border border-slate-200 hover:shadow-md'}`}>
@@ -821,8 +886,7 @@ export default function DashboardPage() {
                                   </Button>
                                 </ConfigProvider>
                                 {(() => {
-                                  const portMatch = runtime.ports?.match(/(\d+)->/);                              
-                                  const p = portMatch ? portMatch[1] : null;
+                                  const p = runtime.publishedPort;
                                   if (!p) return null;
                                   return (
                                     <Button
@@ -847,6 +911,15 @@ export default function DashboardPage() {
                                    return <Tag color={isMoe ? 'purple' : 'cyan'} bordered={false} className="ml-2 !mr-0 font-medium">{archVal}</Tag>;
                                 })()}
                                 <Tag bordered={false} color={runtime.status.includes('Up') ? 'green' : 'red'} className="ml-2">{runtime.status.split(' ')[0]}</Tag>
+                                <Tooltip title={`Last container update: ${containerUpdatedAt[runtime.id] ? new Date(containerUpdatedAt[runtime.id]).toLocaleTimeString() : 'pending'}`}>
+                                  <span
+                                    className="ml-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium"
+                                    style={{ color: syncState.color, borderColor: `${syncState.color}33`, backgroundColor: `${syncState.color}12` }}
+                                  >
+                                    {syncState.icon}
+                                    <span>{syncState.label}</span>
+                                  </span>
+                                </Tooltip>
                                 <span className="text-xs font-mono ml-auto text-slate-400">{runtime.id}</span>
                               </div>
                             </div>
