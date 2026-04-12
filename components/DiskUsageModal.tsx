@@ -87,8 +87,8 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
   const loadData = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const urlSuffix = forceRefresh ? '&refresh=true' : '';
-      const res = await fetch(`/api/disk-usage?action=overview${urlSuffix}`);
+      const refreshSuffix = forceRefresh ? '&refresh=true' : '';
+      const res = await fetch(`/api/disk-usage?action=overview${refreshSuffix}`);
       if (!res.ok) throw new Error('Failed to fetch disk overview');
       const data: DiskOverview = await res.json();
       setOverview(data);
@@ -109,7 +109,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       setTreeDataPinned(pinnedNodes);
 
       // Fetch root separately to pre-populate bottom tree
-      const rootRes = await fetch(`/api/disk-usage?action=tree&path=/${urlSuffix}`);
+      const rootRes = await fetch(`/api/disk-usage?action=tree&path=${encodeURIComponent('/')}${refreshSuffix}`);
       let rootChildren: TreeNodeData[] = [];
       if (rootRes.ok) {
         const rootData = await rootRes.json();
