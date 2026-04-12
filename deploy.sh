@@ -50,6 +50,7 @@ User=$REAL_USER
 WorkingDirectory=$WORK_DIR
 Environment=NODE_ENV=production
 Environment=PORT=3000
+Environment=NEXT_PUBLIC_MONITOR_PROTOCOL_MODE=modern
 Environment=PATH=$(dirname $NODE_PATH):/usr/local/bin:/usr/bin:/bin:/opt/rocm/bin
 ExecStart=$NPM_PATH run start
 Restart=on-failure
