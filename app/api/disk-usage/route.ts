@@ -4,7 +4,8 @@ import { promisify } from 'util';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
-import { readFileSync, statSync } from 'fs';
+import { statSync } from 'fs';
+import { loadAppConfig } from '../../../lib/appConfig';
 
 const execFileAsync = promisify(execFile);
 
@@ -16,11 +17,9 @@ function expandHome(pathStr: string): string {
   return pathStr;
 }
 
-function getPinnedDirs(): string[] {
+async function getPinnedDirs(): Promise<string[]> {
   try {
-    const configPath = expandHome('~/.config/kanban/config.json');
-    const content = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(content);
+    const config = await loadAppConfig();
     if (config.diskPinnedDirs && Array.isArray(config.diskPinnedDirs)) {
       return config.diskPinnedDirs;
     }
@@ -111,7 +110,7 @@ async function refreshCache() {
     }
 
     // 2. Get key directories size
-    const keyDirs = getPinnedDirs().map(p => ({ name: p === '~' ? 'Home Directory (~)' : p, path: p }));
+    const keyDirs = (await getPinnedDirs()).map(p => ({ name: p === '~' ? 'Home Directory (~)' : p, path: p }));
     const dirSizes = [];
     for (const dir of keyDirs) {
       const absPath = expandHome(dir.path);

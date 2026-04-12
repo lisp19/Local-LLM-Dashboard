@@ -1,24 +1,12 @@
 import { NextRequest } from 'next/server';
 import { spawn } from 'child_process';
 import { getDashboardData } from '../../../lib/systemMetrics';
+import { loadAppConfig } from '../../../lib/appConfig';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
 export const dynamic = 'force-dynamic';
-
-const CONFIG_PATH = path.join(os.homedir(), '.config/kanban/config.json');
-
-function readConfig() {
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-    }
-  } catch (e) {
-    console.error('Failed to read config:', e);
-  }
-  return {};
-}
 
 function expandHome(pathStr: string): string {
   if (pathStr.startsWith('~')) {
@@ -29,7 +17,7 @@ function expandHome(pathStr: string): string {
 
 export async function POST(req: NextRequest): Promise<Response> {
   const { port, model, concurrency, prompts, runtime } = await req.json();
-  const config = readConfig();
+  const config = await loadAppConfig();
   const pythonPath = expandHome(config.pythonPath || '~/anaconda3/envs/kt/bin/python');
   const outputDir = expandHome(config.benchmarkPlotDir || path.join(os.homedir(), '.config/kanban/benchmarks'));
 
