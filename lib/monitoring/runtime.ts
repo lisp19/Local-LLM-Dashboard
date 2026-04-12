@@ -76,7 +76,6 @@ async function createMonitoringRuntime(): Promise<MonitoringRuntime> {
       agentId: 'local-main',
       producerId: state.name,
       timestamp: Date.now(),
-      sequence: 0,
       payload: { ...state, eventType, message },
       meta: {
         mode: state.mode,
