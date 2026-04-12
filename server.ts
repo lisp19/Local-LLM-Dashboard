@@ -6,6 +6,10 @@ import { Client } from 'ssh2';
 import fs from 'fs';
 import path from 'path';
 import { consumeToken } from './lib/webshell-tokens';
+import { ensureMonitoringRuntimeStarted } from './lib/monitoring/runtime';
+import { assertAgentToken } from './lib/monitoring/transport/agentAuth';
+import { SUBSCRIPTION_GROUPS, MONITOR_TOPICS } from './lib/monitoring/topics';
+import type { MetricEnvelope } from './lib/monitoring/contracts';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -27,6 +31,19 @@ app.prepare().then(() => {
   });
 
   const io = new SocketIOServer(server);
+
+  // Start the monitoring runtime once server is ready and wire up bus → broadcast
+  ensureMonitoringRuntimeStarted().then((runtime) => {
+    const bus = runtime.getBus();
+    const broadcastTopics = Object.values(MONITOR_TOPICS);
+    for (const topic of broadcastTopics) {
+      bus.subscribe(topic, SUBSCRIPTION_GROUPS.wsBroadcast, (event: MetricEnvelope) => {
+        io.emit('monitor:event', event);
+      });
+    }
+  }).catch((err: unknown) => {
+    console.error('Failed to start monitoring runtime:', err);
+  });
 
   io.on('connection', (socket) => {
     let sshClient: Client | null = null;
@@ -104,6 +121,39 @@ app.prepare().then(() => {
     socket.on('disconnect', () => {
       logAudit('WebSocket client disconnected');
       sshClient?.end();
+    });
+
+    // Monitoring socket events (distinct names — no collision with WebShell)
+    socket.on('monitor:init', async () => {
+      try {
+        const runtime = await ensureMonitoringRuntimeStarted();
+        socket.emit('monitor:snapshot', {
+          dashboard: runtime.getDashboardSnapshot(),
+          health: runtime.getHealthSnapshot(),
+        });
+      } catch (err) {
+        socket.emit('monitor:error', { message: err instanceof Error ? err.message : 'Runtime error' });
+      }
+    });
+
+    socket.on('agent:init', async ({ token }: { token: string }) => {
+      try {
+        await assertAgentToken(token);
+        socket.data.agentAuthenticated = true;
+        socket.emit('agent:ready');
+      } catch (err) {
+        socket.emit('agent:error', { message: err instanceof Error ? err.message : 'Auth error' });
+      }
+    });
+
+    socket.on('agent:report', async (event: MetricEnvelope) => {
+      if (!socket.data.agentAuthenticated) return;
+      try {
+        const runtime = await ensureMonitoringRuntimeStarted();
+        runtime.getBus().publish(event);
+      } catch {
+        // silently drop invalid events from agents
+      }
     });
   });
 
