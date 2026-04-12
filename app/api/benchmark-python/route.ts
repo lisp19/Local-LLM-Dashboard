@@ -16,7 +16,7 @@ function expandHome(pathStr: string): string {
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
-  const { port, model, concurrency, prompts, runtime } = await req.json();
+  const { port, model, concurrency, prompts, runtime, cpuInfo: requestCpuInfo, gpuInfo: requestGpuInfo, osInfo: requestOsInfo } = await req.json();
   const config = await loadAppConfig();
   const pythonPath = expandHome(config.pythonPath || '~/anaconda3/envs/kt/bin/python');
   const outputDir = expandHome(config.benchmarkPlotDir || path.join(os.homedir(), '.config/kanban/benchmarks'));
@@ -26,18 +26,18 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   const dashboardData = await getDashboardData();
-  const cpuInfo = dashboardData.system.cpuCores ? `${dashboardData.system.cpuModel || 'CPU'} (${dashboardData.system.cpuCores} cores)` : 'Unknown CPU';
-  const osInfo = dashboardData.system.osRelease || 'Linux';
+  const cpuInfo = requestCpuInfo || (dashboardData.system.cpuCores ? `${dashboardData.system.cpuModel || 'CPU'} (${dashboardData.system.cpuCores} cores)` : 'Unknown CPU');
+  const osInfo = requestOsInfo || dashboardData.system.osRelease || 'Linux';
   
-  let gpuInfo = '';
+  let gpuInfo = requestGpuInfo || '';
   const gpus = (dashboardData.gpus || []).filter(g => {
     const name = g.name.toLowerCase();
     if (runtime === 'nvidia') return name.includes('nvidia') || name.includes('geforce') || name.includes('quadro') || name.includes('tesla') || name.includes('rtx');
-    if (runtime === 'rocm' || runtime === 'vulkan') return name.includes('amd') || name.includes('ati') || name.includes('radeon');
+    if (runtime === 'rocm' || runtime === 'amd' || runtime === 'vulkan') return name.includes('amd') || name.includes('ati') || name.includes('radeon');
     return false;
   });
-  const runtimeType = runtime === 'nvidia' ? 'nvidia' : (runtime === 'amd' ? 'amd' : 'cpu');
-  if (gpus.length > 0) {
+  const runtimeType = runtime === 'nvidia' ? 'nvidia' : ((runtime === 'amd' || runtime === 'rocm' || runtime === 'vulkan') ? 'amd' : 'cpu');
+  if (!gpuInfo && gpus.length > 0) {
     gpuInfo = `${gpus.length}x ${gpus[0].name} (${gpus[0].memoryTotal})`;
   }
 

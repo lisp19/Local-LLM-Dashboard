@@ -6,4 +6,5 @@ export interface ClientMonitorState {
   status: 'idle' | 'loading' | 'live' | 'error';
   error: string | null;
   lastUpdatedAt: number | null;
+  containerUpdatedAt: Record<string, number>;
 }

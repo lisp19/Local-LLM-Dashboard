@@ -25,67 +25,79 @@ function parseMemBytes(memStr: string): number {
   return value * (units[unit] ?? 1);
 }
 
+function extractPublishedPort(ports: string): string | null {
+  if (!ports) return null;
+
+  const mappings = ports.split(',').map((part) => part.trim()).filter(Boolean);
+  for (const mapping of mappings) {
+    const directMatch = mapping.match(/^(\d+)->\d+\//);
+    if (directMatch) return directMatch[1];
+
+    const hostMatch = mapping.match(/:(\d+)->/);
+    if (hostMatch) return hostMatch[1];
+  }
+
+  return null;
+}
+
 export async function sampleDockerCli(): Promise<ContainerMetrics[]> {
-  try {
-    const { stdout: psStdout } = await execFileAsync('docker', ['ps', '--format', '{{json .}}']);
-    if (!psStdout.trim()) return [];
+  const { stdout: psStdout } = await execFileAsync('docker', ['ps', '--format', '{{json .}}']);
+  if (!psStdout.trim()) return [];
 
-    const containers = psStdout.trim().split('\n').map((line) => JSON.parse(line) as Record<string, string>);
+  const containers = psStdout.trim().split('\n').map((line) => JSON.parse(line) as Record<string, string>);
 
-    const { stdout: statsStdout } = await execFileAsync('docker', [
-      'stats',
-      '--no-stream',
-      '--format',
-      '{{json .}}',
-    ]);
-    const statsMap = new Map<string, Record<string, string>>();
-    for (const line of statsStdout.trim().split('\n').filter(Boolean)) {
-      const stat = JSON.parse(line) as Record<string, string>;
-      statsMap.set(stat.ID, stat);
-    }
+  const { stdout: statsStdout } = await execFileAsync('docker', [
+    'stats',
+    '--no-stream',
+    '--format',
+    '{{json .}}',
+  ]);
+  const statsMap = new Map<string, Record<string, string>>();
+  for (const line of statsStdout.trim().split('\n').filter(Boolean)) {
+    const stat = JSON.parse(line) as Record<string, string>;
+    statsMap.set(stat.ID, stat);
+  }
 
-    const metrics: ContainerMetrics[] = [];
-    for (const c of containers) {
-      const containerId = (c.ID ?? c.Id ?? '') as string;
-      const stat = statsMap.get(containerId) ?? {};
-      const gpus: string[] = [];
+  const metrics: ContainerMetrics[] = [];
+  for (const c of containers) {
+    const containerId = (c.ID ?? c.Id ?? '') as string;
+    const stat = statsMap.get(containerId) ?? {};
+    const gpus: string[] = [];
 
-      try {
-        const { stdout: inspectOut } = await execFileAsync('docker', ['inspect', containerId]);
-        const inspectData = JSON.parse(inspectOut) as Array<{
-          HostConfig?: { DeviceRequests?: Array<{ Capabilities: string[][]; DeviceIDs: string[]; Count: number }> };
-        }>;
-        const deviceRequests = inspectData[0]?.HostConfig?.DeviceRequests ?? [];
-        for (const req of deviceRequests) {
-          if (req.Capabilities?.some((cap) => cap.includes('gpu'))) {
-            if (req.DeviceIDs?.length > 0) {
-              gpus.push(...req.DeviceIDs);
-            } else if (req.Count === -1) {
-              gpus.push('all');
-            } else {
-              gpus.push(String(req.Count));
-            }
+    try {
+      const { stdout: inspectOut } = await execFileAsync('docker', ['inspect', containerId]);
+      const inspectData = JSON.parse(inspectOut) as Array<{
+        HostConfig?: { DeviceRequests?: Array<{ Capabilities: string[][]; DeviceIDs: string[]; Count: number }> };
+      }>;
+      const deviceRequests = inspectData[0]?.HostConfig?.DeviceRequests ?? [];
+      for (const req of deviceRequests) {
+        if (req.Capabilities?.some((cap) => cap.includes('gpu'))) {
+          if (req.DeviceIDs?.length > 0) {
+            gpus.push(...req.DeviceIDs);
+          } else if (req.Count === -1) {
+            gpus.push('all');
+          } else {
+            gpus.push(String(req.Count));
           }
         }
-      } catch {
-        // ignore inspect errors
       }
-
-      metrics.push({
-        id: containerId,
-        name: (c.Names ?? c.Name ?? containerId) as string,
-        image: (c.Image ?? '') as string,
-        status: (c.Status ?? '') as string,
-        ports: (c.Ports ?? '') as string,
-        cpuPercent: (stat.CPUPerc ?? '0.00%') as string,
-        memUsage: (stat.MemUsage ?? '0B / 0B') as string,
-        memUsedRaw: parseMemBytes((stat.MemUsage ?? '0B / 0B') as string),
-        gpus,
-      });
+    } catch {
+      // Ignore inspect errors for one container; keep the runtime metrics snapshot.
     }
 
-    return metrics;
-  } catch {
-    return [];
+    metrics.push({
+      id: containerId,
+      name: (c.Names ?? c.Name ?? containerId) as string,
+      image: (c.Image ?? '') as string,
+      status: (c.Status ?? '') as string,
+      ports: (c.Ports ?? '') as string,
+      publishedPort: extractPublishedPort((c.Ports ?? '') as string),
+      cpuPercent: (stat.CPUPerc ?? '0.00%') as string,
+      memUsage: (stat.MemUsage ?? '0B / 0B') as string,
+      memUsedRaw: parseMemBytes((stat.MemUsage ?? '0B / 0B') as string),
+      gpus,
+    });
   }
+
+  return metrics;
 }

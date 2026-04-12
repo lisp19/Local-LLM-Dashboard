@@ -32,6 +32,7 @@ export interface ContainerMetrics {
   image: string;
   status: string;
   ports: string;
+  publishedPort: string | null;
   cpuPercent: string;
   memUsage: string;
   memUsedRaw: number;

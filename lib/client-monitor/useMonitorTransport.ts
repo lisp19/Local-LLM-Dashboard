@@ -18,6 +18,7 @@ export function useMonitorTransport(): ClientMonitorState {
   const store = getStore();
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
 
   useEffect(() => {
@@ -53,6 +54,14 @@ export function useMonitorTransport(): ClientMonitorState {
       store.setLoading();
       const socket = connectMonitorSocket();
 
+      const requestSnapshot = () => {
+        if (refreshTimerRef.current) return;
+        refreshTimerRef.current = setTimeout(() => {
+          refreshTimerRef.current = null;
+          socket.emit('monitor:init');
+        }, 100);
+      };
+
       socket.emit('monitor:init');
 
       socket.on('monitor:snapshot', ({ dashboard, health }: { dashboard: DashboardData; health: HealthSnapshot }) => {
@@ -60,8 +69,8 @@ export function useMonitorTransport(): ClientMonitorState {
       });
 
       socket.on('monitor:event', () => {
-        // Re-request snapshot on any event to keep state fresh
-        socket.emit('monitor:init');
+        // Coalesce bursts of monitoring events into a single snapshot refresh.
+        requestSnapshot();
       });
 
       socket.on('monitor:error', ({ message }: { message: string }) => {
@@ -77,6 +86,10 @@ export function useMonitorTransport(): ClientMonitorState {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
+      }
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
       }
       initializedRef.current = false;
     };
