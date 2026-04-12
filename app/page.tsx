@@ -603,6 +603,9 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4">
           <Badge status={isValidating ? 'processing' : (error ? 'error' : 'success')} text={isValidating ? 'Syncing' : (error ? 'Error' : 'Live')} className="mr-2" />
           {data && <Text type="secondary">Last updated: {new Date().toLocaleTimeString()}</Text>}
+          <a href="/health" className="text-slate-500 hover:text-blue-600 text-xs" title="Monitoring Health Center">
+            Health Center
+          </a>
           <Button
             type="primary"
             size="small"
