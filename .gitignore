@@ -44,8 +44,8 @@ next-env.d.ts
 # webshell password file — never commit this
 webshell-password.txt
 
-# webshell audit logs
-webshell-audit.log
+# runtime logs
+*.log
 
 # docker assets
 public/docker-icon.svg
