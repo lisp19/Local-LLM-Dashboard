@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cleanupExpired, issueToken } from '../../../../lib/webshell-tokens';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { issueToken, cleanupExpired } = require('../../../../lib/webshell-tokens');
 
 export async function POST(req: NextRequest) {
   try {
