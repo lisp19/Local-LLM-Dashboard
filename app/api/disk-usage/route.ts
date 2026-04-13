@@ -54,7 +54,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 async function safeExecDu(targetDir: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('du', ['-hd', '1', targetDir]);
+    const { stdout } = await execFileAsync('du', ['-ahd', '1', targetDir]);
     return stdout;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
