@@ -4,7 +4,7 @@ import { promisify } from 'util';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
-import { statSync } from 'fs';
+import { statSync, lstatSync } from 'fs';
 import { loadAppConfig } from '../../../lib/appConfig';
 
 const execFileAsync = promisify(execFile);
@@ -54,7 +54,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 async function safeExecDu(targetDir: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync('du', ['-hd', '1', targetDir]);
+    const { stdout } = await execFileAsync('du', ['-ahd', '1', targetDir]);
     return stdout;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
@@ -76,10 +76,20 @@ function parseDuOutput(stdout: string, targetPath: string) {
     const name = path.basename(itemPath);
     let isDir = false;
     try {
-      const stats = statSync(itemPath);
-      isDir = stats.isDirectory();
+      const lstat = lstatSync(itemPath);
+      if (lstat.isSymbolicLink()) {
+        try {
+          const stat = statSync(itemPath); // follow symlink
+          if (stat.isDirectory()) continue; // dir symlink: size is 0/wrong, skip
+          isDir = false; // symlink to file: treat as regular file
+        } catch {
+          continue; // broken symlink, skip
+        }
+      } else {
+        isDir = lstat.isDirectory();
+      }
     } catch {
-      isDir = true; // du -hd 1 outputs directories primarily
+      isDir = true; // fallback
     }
     children.push({ name, path: itemPath, size, isDir });
   }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, Tree, Typography, Space, Spin, message, Row, Col, Progress, Card, Button, Divider, Tooltip, Segmented } from 'antd';
-import { HddOutlined, FolderOpenOutlined, FileOutlined, DatabaseOutlined, ReloadOutlined } from '@ant-design/icons';
+import { HddOutlined, FolderOpenOutlined, FileOutlined, DatabaseOutlined, ReloadOutlined, EllipsisOutlined } from '@ant-design/icons';
 
 const { Text, Title } = Typography;
 
@@ -23,12 +23,20 @@ interface DiskOverview {
   }[];
 }
 
+interface RawChild {
+  name: string;
+  path: string;
+  size: string;
+  isDir: boolean;
+}
+
 interface TreeNodeData {
   title: React.ReactNode;
   key: string;
   isLeaf?: boolean;
   size: string;
   rawPath: string;
+  isExpandMore?: boolean;
   children?: TreeNodeData[];
 }
 
@@ -49,7 +57,10 @@ const sizeToBytes = (sizeStr: string) => {
 };
 
 const sortTree = (nodes: TreeNodeData[], order: 'default' | 'size'): TreeNodeData[] => {
-  return [...nodes].sort((a, b) => {
+  const regular = nodes.filter(n => !n.isExpandMore);
+  const expandMore = nodes.filter(n => n.isExpandMore);
+
+  const sorted = [...regular].sort((a, b) => {
     if (order === 'size') {
       return sizeToBytes(b.size) - sizeToBytes(a.size);
     } else {
@@ -64,6 +75,8 @@ const sortTree = (nodes: TreeNodeData[], order: 'default' | 'size'): TreeNodeDat
     }
     return node;
   });
+
+  return [...sorted, ...expandMore];
 };
 
 export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
@@ -113,20 +126,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       let rootChildren: TreeNodeData[] = [];
       if (rootRes.ok) {
         const rootData = await rootRes.json();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rootChildren = (rootData.children || []).map((child: any) => ({
-          title: (
-            <Space>
-              {child.isDir ? <FolderOpenOutlined style={{ color: '#fa8c16' }} /> : <FileOutlined style={{ color: '#8c8c8c' }} />}
-              <Text>{child.name}</Text>
-              <Text type="secondary" style={{ fontSize: '11px' }}>({child.size})</Text>
-            </Space>
-          ),
-          key: child.path,
-          rawPath: child.path,
-          size: child.size,
-          isLeaf: !child.isDir
-        }));
+        rootChildren = buildChildren(rootData.children || [], '/', setTreeDataRoot);
       }
 
       setTreeDataRoot([{
@@ -161,21 +161,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       if (!res.ok) throw new Error('Failed to fetch folder contents');
       const data = await res.json();
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newChildren: TreeNodeData[] = (data.children || []).map((child: any) => ({
-        title: (
-          <Space>
-            {child.isDir ? <FolderOpenOutlined style={{ color: '#fa8c16' }} /> : <FileOutlined style={{ color: '#8c8c8c' }} />}
-            <Text>{child.name}</Text>
-            <Text type="secondary" style={{ fontSize: '11px' }}>({child.size})</Text>
-          </Space>
-        ),
-        key: child.path,
-        rawPath: child.path,
-        size: child.size,
-        isLeaf: !child.isDir
-      }));
-
+      const newChildren: TreeNodeData[] = buildChildren(data.children || [], key as string, treeSetter);
       treeSetter(origin => updateTreeData(origin, key, newChildren));
     } catch {
       message.error('Permission denied or failed to load folder contents');
@@ -192,6 +178,87 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       }
       return node;
     });
+  };
+
+  const replaceExpandMore = (
+    list: TreeNodeData[],
+    parentKey: string,
+    hiddenNodes: TreeNodeData[]
+  ): TreeNodeData[] => {
+    return list.map(node => {
+      if (node.key === parentKey && node.children) {
+        const withoutVirtual = node.children.filter(c => !c.isExpandMore);
+        return { ...node, children: [...withoutVirtual, ...hiddenNodes] };
+      }
+      if (node.children) {
+        return { ...node, children: replaceExpandMore(node.children, parentKey, hiddenNodes) };
+      }
+      return node;
+    });
+  };
+
+  const FILE_DISPLAY_LIMIT = 20;
+
+  const buildChildren = (
+    rawChildren: RawChild[],
+    parentPath: string,
+    treeSetter: React.Dispatch<React.SetStateAction<TreeNodeData[]>>
+  ): TreeNodeData[] => {
+    const dirs = rawChildren.filter(c => c.isDir);
+    const files = rawChildren.filter(c => !c.isDir);
+
+    const filesSorted = [...files].sort((a, b) => sizeToBytes(b.size) - sizeToBytes(a.size));
+
+    const toNode = (child: RawChild): TreeNodeData => ({
+      title: (
+        <Space>
+          {child.isDir
+            ? <FolderOpenOutlined style={{ color: '#fa8c16' }} />
+            : <FileOutlined style={{ color: '#8c8c8c' }} />
+          }
+          <Text>{child.name}</Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>({child.size})</Text>
+        </Space>
+      ),
+      key: child.path,
+      rawPath: child.path,
+      size: child.size,
+      isLeaf: !child.isDir,
+    });
+
+    const dirNodes = dirs.map(toNode);
+    const visibleFiles = filesSorted.slice(0, FILE_DISPLAY_LIMIT);
+    const hiddenFiles = filesSorted.slice(FILE_DISPLAY_LIMIT);
+    const visibleFileNodes = visibleFiles.map(toNode);
+
+    const result: TreeNodeData[] = [...dirNodes, ...visibleFileNodes];
+
+    if (hiddenFiles.length > 0) {
+      const hiddenFileNodes = hiddenFiles.map(toNode);
+      const expandMoreNode: TreeNodeData = {
+        title: (
+          <Space
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              treeSetter(origin => replaceExpandMore(origin, parentPath, hiddenFileNodes));
+            }}
+          >
+            <EllipsisOutlined style={{ color: '#8c8c8c' }} />
+            <Text type="secondary" style={{ fontSize: '11px' }}>
+              …还有 {hiddenFiles.length} 个文件（点击展开）
+            </Text>
+          </Space>
+        ),
+        key: `${parentPath}/__expand_more__`,
+        rawPath: parentPath,
+        isLeaf: true,
+        isExpandMore: true,
+        size: '',
+      };
+      result.push(expandMoreNode);
+    }
+
+    return result;
   };
 
   return (
