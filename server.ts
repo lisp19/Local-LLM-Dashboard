@@ -3,13 +3,19 @@ import { parse } from 'url';
 import next from 'next';
 import { Server as SocketIOServer } from 'socket.io';
 import { Client } from 'ssh2';
-import fs from 'fs';
-import path from 'path';
 import { consumeToken } from './lib/webshell-tokens';
 import { ensureMonitoringRuntimeStarted } from './lib/monitoring/runtime';
 import { assertAgentToken } from './lib/monitoring/transport/agentAuth';
 import { SUBSCRIPTION_GROUPS, MONITOR_TOPICS } from './lib/monitoring/topics';
 import type { MetricEnvelope } from './lib/monitoring/contracts';
+import type { SshAuthMode } from './lib/webshell/types';
+import {
+  appendWebShellAuditEvent,
+  buildAuditContext,
+  createWebShellSessionId,
+  ensureWebShellAuditWritable,
+  validateWebShellInitPayload,
+} from './lib/webshell/serverAudit';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -51,65 +57,97 @@ app.prepare().then(() => {
       write(data: string): void;
       setWindow(rows: number, cols: number, height: number, width: number): void;
     } | null = null;
-    const auditLogPath = path.join(process.cwd(), 'webshell-audit.log');
+    let sessionId: string | null = null;
+    let authMode: SshAuthMode | null = null;
+    let sshUsername = '';
+    let auditContext: ReturnType<typeof buildAuditContext> | null = null;
 
-    const logAudit = (message: string) => {
-      const timestamp = new Date().toISOString();
-      fs.appendFileSync(auditLogPath, `[${timestamp}] ${message}\n`);
+    const writeAudit = (event: 'auth_token_rejected' | 'ssh_connect_started' | 'ssh_connect_succeeded' | 'ssh_shell_started' | 'ssh_connect_failed' | 'ssh_disconnected', reason?: string) => {
+      if (!sessionId) {
+        sessionId = createWebShellSessionId();
+      }
+
+      appendWebShellAuditEvent({
+        timestamp: new Date().toISOString(),
+        event,
+        sessionId,
+        authMode: authMode ?? undefined,
+        sshUsername: sshUsername || undefined,
+        reason,
+        ...(auditContext ?? {}),
+      });
     };
 
-    // WebShell events
-    socket.on('init', ({ username, privateKey, token }: { username: string; privateKey: string; token: string }) => {
-      if (!consumeToken(token)) {
-        logAudit('Rejected unauthorized init attempt (invalid/expired token)');
+    socket.on('init', (payload: unknown) => {
+      try {
+        ensureWebShellAuditWritable();
+      } catch {
+        socket.emit('error', 'WebShell audit unavailable');
+        return;
+      }
+
+      const validated = validateWebShellInitPayload(payload);
+      if (!validated) {
+        socket.emit('error', 'Invalid SSH initialization payload');
+        return;
+      }
+
+      sessionId = createWebShellSessionId();
+      authMode = validated.authMode;
+      sshUsername = validated.username;
+      auditContext = buildAuditContext(socket, validated.audit);
+
+      if (!consumeToken(validated.token)) {
+        writeAudit('auth_token_rejected', 'invalid_or_expired_token');
         socket.emit('error', 'Unauthorized: invalid or expired token');
         return;
       }
 
-      logAudit(`Connection attempt for user: ${username}`);
+      writeAudit('ssh_connect_started');
       sshClient = new Client();
 
       sshClient
         .on('ready', () => {
-          logAudit(`SSH connection successful for user: ${username}`);
+          writeAudit('ssh_connect_succeeded');
           socket.emit('ready');
 
           sshClient?.shell((err, stream) => {
             if (err) {
-              logAudit(`Shell error: ${err.message}`);
+              writeAudit('ssh_connect_failed', `shell:${err.message}`);
               socket.emit('error', `Shell error: ${err.message}`);
+              sshClient?.end();
               return;
             }
 
             sshStream = stream;
+            writeAudit('ssh_shell_started');
+
             stream
               .on('close', () => {
-                logAudit('SSH stream closed');
+                writeAudit('ssh_disconnected', 'stream_closed');
                 sshClient?.end();
                 socket.emit('close');
               })
               .on('data', (data: Buffer) => {
-                const output = data.toString('utf-8');
-                logAudit(`[OUT] ${output.replace(/\r?\n/g, '\\n')}`);
-                socket.emit('data', output);
+                socket.emit('data', data.toString('utf-8'));
               });
           });
         })
         .on('error', (err) => {
-          logAudit(`SSH connection error: ${err.message}`);
+          writeAudit('ssh_connect_failed', err.message);
           socket.emit('error', `SSH Connection Error: ${err.message}`);
         })
         .connect({
           host: '127.0.0.1',
           port: 22,
-          username,
-          privateKey,
+          username: validated.username,
+          privateKey: validated.authMode === 'privateKey' ? validated.privateKey : undefined,
+          password: validated.authMode === 'password' ? validated.password : undefined,
         });
     });
 
     socket.on('data', (data: string) => {
       if (sshStream) {
-        logAudit(`[IN] ${data.replace(/\r?\n/g, '\\n')}`);
         sshStream.write(data);
       }
     });
@@ -118,8 +156,10 @@ app.prepare().then(() => {
       sshStream?.setWindow(rows, cols, 0, 0);
     });
 
-    socket.on('disconnect', () => {
-      logAudit('WebSocket client disconnected');
+    socket.on('disconnect', (reason: string) => {
+      if (sessionId) {
+        writeAudit('ssh_disconnected', reason);
+      }
       sshClient?.end();
     });
 
