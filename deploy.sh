@@ -51,6 +51,8 @@ WorkingDirectory=$WORK_DIR
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=NEXT_PUBLIC_MONITOR_PROTOCOL_MODE=modern
+Environment=MONITOR_QUEUE_SAMPLING_INTERVAL_MS=10000
+Environment=MONITOR_QUEUE_RING_BUFFER_SIZE=8192
 Environment=PATH=$(dirname $NODE_PATH):/usr/local/bin:/usr/bin:/bin:/opt/rocm/bin
 ExecStart=$NPM_PATH run start
 Restart=on-failure

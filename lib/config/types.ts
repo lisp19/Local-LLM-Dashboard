@@ -27,6 +27,8 @@ export interface MonitoringConfig {
   };
   health: {
     retentionLimit: number;
+    queueSamplingIntervalMs: number;
+    queueRingBufferSize: number;
   };
   diskPinnedDirs?: string[];
 }

@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Badge, Descriptions, Typography } from 'antd';
+import { Badge, Descriptions, Tooltip, Typography } from 'antd';
 import type { HealthSnapshot } from '../../lib/monitoring/contracts';
 
 const { Text } = Typography;
@@ -18,18 +18,35 @@ function isPositiveCounter(value: string | undefined | null): boolean {
 
 export interface QueueHealthCardProps {
   queue: HealthSnapshot['queue'];
+  sessionCounters: HealthSnapshot['queue']['sampledDiffCounters'];
 }
 
-export function QueueHealthCard({ queue }: QueueHealthCardProps) {
-  // Normalise to '0' if the server hasn't yet been updated to the new shape.
-  const bufferOverwrites = (queue.bufferOverwrites as string | undefined) ?? '0';
-  const timedOutDeliveries = (queue.timedOutDeliveries as string | undefined) ?? '0';
-  const ackedDeliveries = (queue.ackedDeliveries as string | undefined) ?? '0';
-  const consumerErrors = (queue.consumerErrors as string | undefined) ?? '0';
+function renderCounterBadge(sessionValue: string, totalValue: string, status: 'success' | 'error') {
+  return (
+    <Tooltip title={`Backend total: ${totalValue}`}>
+      <Badge status={status} text={sessionValue} />
+    </Tooltip>
+  );
+}
+
+function renderCounterText(sessionValue: string, totalValue: string) {
+  return <Tooltip title={`Backend total: ${totalValue}`}>{sessionValue}</Tooltip>;
+}
+
+export function QueueHealthCard({ queue, sessionCounters }: QueueHealthCardProps) {
+  const bufferOverwrites = sessionCounters.bufferOverwrites ?? '0';
+  const timedOutDeliveries = sessionCounters.timedOutDeliveries ?? '0';
+  const ackedDeliveries = sessionCounters.ackedDeliveries ?? '0';
+  const consumerErrors = sessionCounters.consumerErrors ?? '0';
   const pendingDeliveries = (queue.pendingDeliveries as number | undefined) ?? 0;
+  const totalBufferOverwrites = queue.totalCounters?.bufferOverwrites ?? '0';
+  const totalTimedOutDeliveries = queue.totalCounters?.timedOutDeliveries ?? '0';
+  const totalAckedDeliveries = queue.totalCounters?.ackedDeliveries ?? '0';
+  const totalConsumerErrors = queue.totalCounters?.consumerErrors ?? '0';
 
   const hasBufferOverwrites = isPositiveCounter(bufferOverwrites);
   const hasTimedOutDeliveries = isPositiveCounter(timedOutDeliveries);
+  const hasConsumerErrors = isPositiveCounter(consumerErrors);
 
   return (
     <div className="space-y-3">
@@ -39,16 +56,20 @@ export function QueueHealthCard({ queue }: QueueHealthCardProps) {
         <Descriptions.Item label="Consumers">{queue.consumerCount}</Descriptions.Item>
         <Descriptions.Item label="Pending Deliveries">{pendingDeliveries}</Descriptions.Item>
         <Descriptions.Item label="Buffer Overwrites">
-          <Badge status={hasBufferOverwrites ? 'error' : 'success'} text={bufferOverwrites} />
+          {renderCounterBadge(bufferOverwrites, totalBufferOverwrites, hasBufferOverwrites ? 'error' : 'success')}
         </Descriptions.Item>
         <Descriptions.Item label="Timed-out Deliveries">
-          <Badge status={hasTimedOutDeliveries ? 'error' : 'success'} text={timedOutDeliveries} />
+          {renderCounterBadge(timedOutDeliveries, totalTimedOutDeliveries, hasTimedOutDeliveries ? 'error' : 'success')}
         </Descriptions.Item>
-        <Descriptions.Item label="Acked Deliveries">{ackedDeliveries}</Descriptions.Item>
-        <Descriptions.Item label="Consumer Errors">{consumerErrors}</Descriptions.Item>
+        <Descriptions.Item label="Acked Deliveries">
+          {renderCounterText(ackedDeliveries, totalAckedDeliveries)}
+        </Descriptions.Item>
+        <Descriptions.Item label="Consumer Errors">
+          {renderCounterBadge(consumerErrors, totalConsumerErrors, hasConsumerErrors ? 'error' : 'success')}
+        </Descriptions.Item>
       </Descriptions>
       <Text type="secondary" className="text-xs block">
-        Buffer Overwrites tracks retained ring-buffer history pressure. Timed-out Deliveries tracks subscription-group deliveries that did not receive a successful ack before timeout.
+        Queue counters show counts accumulated since you opened this page. Hover the displayed values to inspect backend cumulative totals. Pending Deliveries remains the live backend in-flight count.
       </Text>
     </div>
   );

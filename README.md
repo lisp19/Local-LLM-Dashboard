@@ -94,9 +94,12 @@ Set the client-side transport with an environment variable:
 | Variable | Values | Default |
 |----------|--------|---------|
 | `NEXT_PUBLIC_MONITOR_PROTOCOL_MODE` | `legacy` \| `modern` | `legacy` |
+| `MONITOR_QUEUE_SAMPLING_INTERVAL_MS` | integer milliseconds | `10000` |
+| `MONITOR_QUEUE_RING_BUFFER_SIZE` | integer slots | `64` |
 
 - **`legacy`**: Client polls `/api/metrics` and `/api/system-health` every 2 seconds (HTTP SWR-style).
 - **`modern`**: Client connects via socket.io, emitting `monitor:init` and receiving live `monitor:snapshot` / `monitor:event` pushes.
+- Queue counter session aggregation samples backend cumulative values every `MONITOR_QUEUE_SAMPLING_INTERVAL_MS` and writes sampled diffs into the Health Center stream.
 
 ### Monitoring Runtime
 
@@ -109,14 +112,14 @@ On startup, `server.ts` initialises a singleton monitoring runtime that runs fou
 | GPU | `nvidia-smi` / `rocm-smi` | graceful skip |
 | Model Config | `model-config.json` watch | static snapshot |
 
-Each dispatcher publishes `MetricEnvelope` messages to an in-memory ring-buffer bus. Projectors subscribe to those messages to maintain `DashboardData` and `HealthSnapshot` objects.
+Each dispatcher publishes `MetricEnvelope` messages to an in-memory ring-buffer bus. Projectors subscribe to those messages to maintain `DashboardData` and `HealthSnapshot` objects. Ring buffer capacity is controlled by `MONITOR_QUEUE_RING_BUFFER_SIZE`.
 
 ### Health Center
 
 Navigate to `/health` (link in dashboard header) for a read-only view of:
 
 - Dispatcher state, mode (primary/fallback), latency, and error counts
-- Message queue stats (topics, consumers, buffer overwrites, async delivery ack outcomes)
+- Message queue stats (live in-flight queue state plus Health Center session counters with hoverable backend totals)
 - Connected external agents
 - Recent health events (degraded / recovered / error)
 

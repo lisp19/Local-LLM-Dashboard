@@ -1,4 +1,5 @@
-import type { MetricEnvelope } from './contracts';
+import type { MetricEnvelope, QueueCounterSnapshot, QueueStructuralStats } from './contracts';
+import { MONITOR_TOPICS } from './topics';
 
 type Consumer = (envelope: MetricEnvelope) => void | Promise<void>;
 
@@ -6,26 +7,22 @@ export interface PublishResult {
   sequence: number;
 }
 
-export interface QueueStats {
-  topicCount: number;
-  groupCount: number;
-  consumerCount: number;
-  pendingDeliveries: number;
-  bufferOverwrites: string;
-  ackedDeliveries: string;
-  timedOutDeliveries: string;
-  consumerErrors: string;
-}
+export type QueueStats = QueueStructuralStats;
 
 export interface MessageBus {
   publish(envelope: Omit<MetricEnvelope, 'sequence'>): PublishResult;
   subscribe(topic: string, group: string, consumer: Consumer): () => void;
   getQueueStats(): QueueStats;
+  getQueueCounterSnapshot(): QueueCounterSnapshot;
 }
 
-const RING_BUFFER_SIZE = 64;
+export interface MessageBusOptions {
+  ringBufferSize?: number;
+}
+
 const ACK_TIMEOUT_MS = 5000;
 const ACK_SWEEP_INTERVAL_MS = 1000;
+const COUNTER_EXCLUDED_TOPICS = new Set<string>([MONITOR_TOPICS.healthQueue]);
 
 interface RingBuffer {
   messages: MetricEnvelope[];
@@ -39,14 +36,14 @@ interface PendingAck {
   deadlineAt: number;
 }
 
-function createRingBuffer(): RingBuffer {
-  return { messages: new Array<MetricEnvelope>(RING_BUFFER_SIZE), head: 0, count: 0 };
+function createRingBuffer(size: number): RingBuffer {
+  return { messages: new Array<MetricEnvelope>(size), head: 0, count: 0 };
 }
 
-function pushToRing(ring: RingBuffer, msg: MetricEnvelope): boolean {
-  const overwrote = ring.count >= RING_BUFFER_SIZE;
+function pushToRing(ring: RingBuffer, msg: MetricEnvelope, size: number): boolean {
+  const overwrote = ring.count >= size;
   ring.messages[ring.head] = msg;
-  ring.head = (ring.head + 1) % RING_BUFFER_SIZE;
+  ring.head = (ring.head + 1) % size;
   if (!overwrote) ring.count++;
   return overwrote;
 }
@@ -62,7 +59,22 @@ function toCounterString(value: bigint): string {
   return value.toString(10);
 }
 
-export function createMessageBus(): MessageBus {
+function toQueueCounterSnapshot(
+  bufferOverwrites: bigint,
+  ackedDeliveries: bigint,
+  timedOutDeliveries: bigint,
+  consumerErrors: bigint,
+): QueueCounterSnapshot {
+  return {
+    bufferOverwrites: toCounterString(bufferOverwrites),
+    ackedDeliveries: toCounterString(ackedDeliveries),
+    timedOutDeliveries: toCounterString(timedOutDeliveries),
+    consumerErrors: toCounterString(consumerErrors),
+  };
+}
+
+export function createMessageBus(options: MessageBusOptions = {}): MessageBus {
+  const ringBufferSize = Math.max(1, Math.floor(options.ringBufferSize ?? 64));
   // topic -> ring buffer
   const rings = new Map<string, RingBuffer>();
   // topic -> (group -> consumers[])
@@ -101,7 +113,7 @@ export function createMessageBus(): MessageBus {
   function getOrCreateRing(topic: string): RingBuffer {
     let ring = rings.get(topic);
     if (!ring) {
-      ring = createRingBuffer();
+      ring = createRingBuffer(ringBufferSize);
       rings.set(topic, ring);
     }
     return ring;
@@ -120,35 +132,40 @@ export function createMessageBus(): MessageBus {
     publish(envelope: Omit<MetricEnvelope, 'sequence'>): PublishResult {
       const seq = ++sequence;
       const full: MetricEnvelope = { ...envelope, sequence: seq } as MetricEnvelope;
+      const trackCounters = !COUNTER_EXCLUDED_TOPICS.has(envelope.topic);
       const ring = getOrCreateRing(envelope.topic);
-      const overwrote = pushToRing(ring, full);
-      if (overwrote) bufferOverwrites += BigInt(1);
+      const overwrote = pushToRing(ring, full, ringBufferSize);
+      if (overwrote && trackCounters) bufferOverwrites += BigInt(1);
 
       const groups = subscriptions.get(envelope.topic);
       if (groups) {
         for (const [group, consumers] of groups.entries()) {
           if (consumers.length === 0) continue;
 
-          const ackKey = createAckKey(seq, envelope.topic, group);
-          pendingAcks.set(ackKey, {
-            topic: envelope.topic,
-            group,
-            deadlineAt: Date.now() + ACK_TIMEOUT_MS,
-          });
+          const ackKey = trackCounters ? createAckKey(seq, envelope.topic, group) : null;
+          if (ackKey) {
+            pendingAcks.set(ackKey, {
+              topic: envelope.topic,
+              group,
+              deadlineAt: Date.now() + ACK_TIMEOUT_MS,
+            });
+          }
 
           for (const consumer of consumers) {
             try {
               const result = consumer(full);
               if (result instanceof Promise) {
-                result.then(() => markAcked(ackKey)).catch((err) => {
-                  consumerErrors += BigInt(1);
+                result.then(() => {
+                  if (ackKey) markAcked(ackKey);
+                }).catch((err) => {
+                  if (trackCounters) consumerErrors += BigInt(1);
                   console.error('[bus] Consumer error:', err);
                 });
               } else {
-                markAcked(ackKey);
+                if (ackKey) markAcked(ackKey);
               }
             } catch (err) {
-              consumerErrors += BigInt(1);
+              if (trackCounters) consumerErrors += BigInt(1);
               console.error('[bus] Consumer error:', err);
             }
           }
@@ -192,11 +209,11 @@ export function createMessageBus(): MessageBus {
         groupCount,
         consumerCount,
         pendingDeliveries: pendingAcks.size,
-        bufferOverwrites: toCounterString(bufferOverwrites),
-        ackedDeliveries: toCounterString(ackedDeliveries),
-        timedOutDeliveries: toCounterString(timedOutDeliveries),
-        consumerErrors: toCounterString(consumerErrors),
       };
+    },
+
+    getQueueCounterSnapshot(): QueueCounterSnapshot {
+      return toQueueCounterSnapshot(bufferOverwrites, ackedDeliveries, timedOutDeliveries, consumerErrors);
     },
   };
 }

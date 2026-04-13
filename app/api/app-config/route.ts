@@ -7,6 +7,8 @@ export async function GET() {
   return Response.json({
     openWebUIPort: config.openWebUIPort,
     protocolMode: monitorEnv.monitorProtocolMode,
+    queueSamplingIntervalMs: config.health.queueSamplingIntervalMs,
+    queueRingBufferSize: config.health.queueRingBufferSize,
     healthCenterEnabled: true,
   });
 }

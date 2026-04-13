@@ -1,4 +1,10 @@
-import type { MetricEnvelope, HealthSnapshot, DispatcherState } from '../contracts';
+import type {
+  MetricEnvelope,
+  HealthSnapshot,
+  DispatcherState,
+  QueueCounterSnapshot,
+  QueueHealthSamplePayload,
+} from '../contracts';
 import { MONITOR_TOPICS } from '../topics';
 import type { MessageBus } from '../bus';
 
@@ -6,6 +12,15 @@ export interface HealthProjector {
   apply(envelope: MetricEnvelope): void;
   getSnapshot(): HealthSnapshot;
   updateQueueStats(bus: MessageBus): void;
+}
+
+function zeroQueueCounters(): QueueCounterSnapshot {
+  return {
+    bufferOverwrites: '0',
+    ackedDeliveries: '0',
+    timedOutDeliveries: '0',
+    consumerErrors: '0',
+  };
 }
 
 export function createHealthProjector(): HealthProjector {
@@ -17,10 +32,9 @@ export function createHealthProjector(): HealthProjector {
     groupCount: 0,
     consumerCount: 0,
     pendingDeliveries: 0,
-    bufferOverwrites: '0',
-    ackedDeliveries: '0',
-    timedOutDeliveries: '0',
-    consumerErrors: '0',
+    sampledAt: null,
+    sampledDiffCounters: zeroQueueCounters(),
+    totalCounters: zeroQueueCounters(),
   };
 
   function addEvent(event: HealthSnapshot['events'][number], retentionLimit: number) {
@@ -69,11 +83,24 @@ export function createHealthProjector(): HealthProjector {
           lastSeenAt: envelope.timestamp,
           transport: agent.transport,
         });
+      } else if (envelope.topic === MONITOR_TOPICS.healthQueue) {
+        const payload = envelope.payload as QueueHealthSamplePayload;
+        queueStats = {
+          ...queueStats,
+          ...payload.queueStats,
+          sampledAt: payload.sampledAt,
+          sampledDiffCounters: payload.sampledDiffCounters,
+          totalCounters: payload.totalCounters,
+        };
       }
     },
 
     updateQueueStats(bus: MessageBus): void {
-      queueStats = bus.getQueueStats();
+      queueStats = {
+        ...queueStats,
+        ...bus.getQueueStats(),
+        totalCounters: bus.getQueueCounterSnapshot(),
+      };
     },
 
     getSnapshot(): HealthSnapshot {
