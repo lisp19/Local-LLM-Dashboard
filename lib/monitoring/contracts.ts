@@ -37,6 +37,7 @@ export interface ContainerMetrics {
   memUsage: string;
   memUsedRaw: number;
   gpus: string[];
+  syncState: 'syncing' | 'ok';
 }
 
 export interface DashboardData {

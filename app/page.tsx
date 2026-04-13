@@ -85,24 +85,29 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 const CONTAINER_FRESH_MS = 6_000;
 const CONTAINER_STALE_MS = 15_000;
 
-function getContainerSyncState(lastSeenAt: number | null): {
+function getContainerSyncState(
+  runtimeSyncState: 'syncing' | 'ok' | undefined,
+  lastSeenAt: number | null,
+): {
   color: string;
   label: string;
   icon: React.ReactNode;
 } {
-  if (!lastSeenAt) {
+  const ageMs = lastSeenAt ? Date.now() - lastSeenAt : null;
+
+  if (ageMs !== null && ageMs > CONTAINER_STALE_MS) {
+    return { color: '#dc2626', label: 'Stale', icon: <CloseCircleFilled /> };
+  }
+
+  if (!lastSeenAt || runtimeSyncState === 'syncing') {
     return { color: '#f59e0b', label: 'Syncing', icon: <EllipsisOutlined /> };
   }
 
-  const ageMs = Date.now() - lastSeenAt;
-  if (ageMs <= CONTAINER_FRESH_MS) {
+  if (ageMs !== null && ageMs <= CONTAINER_FRESH_MS) {
     return { color: '#16a34a', label: 'OK', icon: <CheckCircleFilled /> };
   }
-  if (ageMs <= CONTAINER_STALE_MS) {
-    return { color: '#f59e0b', label: 'Syncing', icon: <EllipsisOutlined /> };
-  }
 
-  return { color: '#dc2626', label: 'Stale', icon: <CloseCircleFilled /> };
+  return { color: '#f59e0b', label: 'Syncing', icon: <EllipsisOutlined /> };
 }
 
 function buildBenchmarkHardwareInfo(
@@ -846,7 +851,7 @@ export default function DashboardPage() {
                     const isPinned = pinnedNames.has(runtime.name) || modelConfig?.Pinned === true;
                     const visualWidth = calculateVisualWidth(runtime.memUsedRaw, memCeiling, totalSystemMem);
                     const isWarning = (runtime.memUsedRaw / totalSystemMem) > 0.5;
-                    const syncState = getContainerSyncState(containerUpdatedAt[runtime.id] ?? null);
+                    const syncState = getContainerSyncState(runtime.syncState, containerUpdatedAt[runtime.id] ?? null);
                     
                     return (
                       <Card key={runtime.id} bordered={false} style={{ borderRadius: 16 }} styles={{ body: { padding: '14px' } }} className={`shadow-sm bg-white transition-shadow ${isPinned ? 'border-2 border-blue-400 shadow-blue-100' : 'border border-slate-200 hover:shadow-md'}`}>
