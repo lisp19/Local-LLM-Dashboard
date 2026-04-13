@@ -661,7 +661,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4">
           <Badge status={isValidating ? 'processing' : (error ? 'error' : 'success')} text={isValidating ? 'Syncing' : (error ? 'Error' : 'Live')} className="mr-2" />
           {lastUpdatedAt && <Text type="secondary">Last updated: {new Date(lastUpdatedAt).toLocaleTimeString()}</Text>}
-          <a href="/health" className="text-slate-500 hover:text-blue-600 text-xs" title="Monitoring Health Center">
+          <a href="/health" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-blue-600 text-xs" title="Monitoring Health Center">
             Health Center
           </a>
           <Button
@@ -866,7 +866,7 @@ export default function DashboardPage() {
                                     <PushpinOutlined className="text-slate-400 hover:text-blue-500 text-xl transition-colors" />
                                   )}
                                 </button>
-                                <Title level={5} style={{ margin: 0, color: '#0f172a' }}>{runtime.name}</Title>
+                                <Title level={5} className="truncate" style={{ margin: 0, color: '#0f172a', minWidth: 0, flex: 1 }} title={runtime.name}>{runtime.name}</Title>
                                 <Button 
                                     type="primary"
                                     ghost
