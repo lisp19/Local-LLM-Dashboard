@@ -67,7 +67,11 @@ export interface HealthSnapshot {
     topicCount: number;
     groupCount: number;
     consumerCount: number;
-    droppedMessages: number;
+    pendingDeliveries: number;
+    bufferOverwrites: string;
+    ackedDeliveries: string;
+    timedOutDeliveries: string;
+    consumerErrors: string;
   };
   agents: Array<{
     sourceId: string;
