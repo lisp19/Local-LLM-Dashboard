@@ -16,7 +16,11 @@ export function createHealthProjector(): HealthProjector {
     topicCount: 0,
     groupCount: 0,
     consumerCount: 0,
-    droppedMessages: 0,
+    pendingDeliveries: 0,
+    bufferOverwrites: '0',
+    ackedDeliveries: '0',
+    timedOutDeliveries: '0',
+    consumerErrors: '0',
   };
 
   function addEvent(event: HealthSnapshot['events'][number], retentionLimit: number) {

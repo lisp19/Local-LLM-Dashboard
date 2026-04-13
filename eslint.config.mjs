@@ -19,6 +19,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Generated server bundle files - not hand-editable, contain CJS require() calls
+      "server.bundle.js",
+      "server.js",
     ],
   },
 ];
