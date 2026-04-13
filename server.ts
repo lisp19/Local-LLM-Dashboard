@@ -157,7 +157,9 @@ app.prepare().then(() => {
     });
   });
 
-  server.listen(port, () => {
-    console.log(`> Ready on http://${hostname}:${port}`);
-  });
+  if (!process.env.NEXT_PRIVATE_WORKER) {
+    server.listen(port, () => {
+      console.log(`> Ready on http://${hostname}:${port}`);
+    });
+  }
 });
