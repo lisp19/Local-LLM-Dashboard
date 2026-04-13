@@ -126,20 +126,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       let rootChildren: TreeNodeData[] = [];
       if (rootRes.ok) {
         const rootData = await rootRes.json();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rootChildren = (rootData.children || []).map((child: any) => ({
-          title: (
-            <Space>
-              {child.isDir ? <FolderOpenOutlined style={{ color: '#fa8c16' }} /> : <FileOutlined style={{ color: '#8c8c8c' }} />}
-              <Text>{child.name}</Text>
-              <Text type="secondary" style={{ fontSize: '11px' }}>({child.size})</Text>
-            </Space>
-          ),
-          key: child.path,
-          rawPath: child.path,
-          size: child.size,
-          isLeaf: !child.isDir
-        }));
+        rootChildren = buildChildren(rootData.children || [], '/', setTreeDataRoot);
       }
 
       setTreeDataRoot([{
@@ -174,21 +161,7 @@ export default function DiskUsageModal({ open, onClose }: DiskUsageModalProps) {
       if (!res.ok) throw new Error('Failed to fetch folder contents');
       const data = await res.json();
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newChildren: TreeNodeData[] = (data.children || []).map((child: any) => ({
-        title: (
-          <Space>
-            {child.isDir ? <FolderOpenOutlined style={{ color: '#fa8c16' }} /> : <FileOutlined style={{ color: '#8c8c8c' }} />}
-            <Text>{child.name}</Text>
-            <Text type="secondary" style={{ fontSize: '11px' }}>({child.size})</Text>
-          </Space>
-        ),
-        key: child.path,
-        rawPath: child.path,
-        size: child.size,
-        isLeaf: !child.isDir
-      }));
-
+      const newChildren: TreeNodeData[] = buildChildren(data.children || [], key as string, treeSetter);
       treeSetter(origin => updateTreeData(origin, key, newChildren));
     } catch {
       message.error('Permission denied or failed to load folder contents');
