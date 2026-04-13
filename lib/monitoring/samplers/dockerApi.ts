@@ -70,7 +70,7 @@ export async function sampleDockerApi(): Promise<ContainerMetrics[]> {
   if (containers.length === 0) return [];
 
   const settled = await Promise.allSettled(
-    containers.map(async (c) => {
+    containers.map(async (c): Promise<ContainerMetrics> => {
       const instance = docker.getContainer(c.Id);
       const [statsRaw, gpus] = await Promise.all([
         instance.stats({ stream: false }) as Promise<DockerStats>,
@@ -98,6 +98,7 @@ export async function sampleDockerApi(): Promise<ContainerMetrics[]> {
         memUsage,
         memUsedRaw: memUsed,
         gpus,
+        syncState: 'ok',
       };
     }),
   );

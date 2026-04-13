@@ -96,6 +96,7 @@ export async function sampleDockerCli(): Promise<ContainerMetrics[]> {
       memUsage: (stat.MemUsage ?? '0B / 0B') as string,
       memUsedRaw: parseMemBytes((stat.MemUsage ?? '0B / 0B') as string),
       gpus,
+      syncState: 'ok',
     });
   }
 
