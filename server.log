@@ -1,0 +1,30 @@
+
+> kanban@1.1.0 dev
+> rm -rf .next-dev && NEXT_DIST_DIR=.next-dev tsx server.ts
+
+Error: listen EADDRINUSE: address already in use :::3001
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::3001)
+    at <unknown> (server.ts:160:10 ✓ Compiled / in 27.1s (6758 modules)
+ ⨯ Error: ENOENT: no such file or directory, open '/home/lsp/kanban/.next-dev/server/app/api/metrics/route.js'
+    at async Server.<anonymous> (server.ts:25:7) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/lsp/kanban/.next-dev/server/app/api/metrics/route.js',
+  page: '/api/metrics'
+}
+ GET / 200 in 28878ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 3s (7080 modules)
+ GET /api/metrics 500 in 24272ms
+ GET / 200 in 2627ms
+ GET / 200 in 73ms
+ ⨯ Error: ENOENT: no such file or directory, open '/home/lsp/kanban/.next-dev/server/app/api/metrics/route.js'
+    at async Server.<anonymous> (server.ts:25:7) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/home/lsp/kanban/.next-dev/server/app/api/metrics/route.js',
+  page: '/api/metrics'
+}
+ GET /api/metrics 500 in 432ms
