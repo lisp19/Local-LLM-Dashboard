@@ -116,7 +116,7 @@ Each dispatcher publishes `MetricEnvelope` messages to an in-memory ring-buffer 
 Navigate to `/health` (link in dashboard header) for a read-only view of:
 
 - Dispatcher state, mode (primary/fallback), latency, and error counts
-- Message queue stats (topics, consumers, dropped messages)
+- Message queue stats (topics, consumers, buffer overwrites, async delivery ack outcomes)
 - Connected external agents
 - Recent health events (degraded / recovered / error)
 
