@@ -1,4 +1,11 @@
-import type { DashboardData, HealthSnapshot, MetricEnvelope, DispatcherState } from './contracts';
+import type {
+  DashboardData,
+  HealthSnapshot,
+  MetricEnvelope,
+  DispatcherState,
+  QueueCounterSnapshot,
+  QueueHealthSamplePayload,
+} from './contracts';
 import { createMessageBus, type MessageBus } from './bus';
 import { createCoreProjector } from './projectors/coreProjector';
 import { createHealthProjector } from './projectors/healthProjector';
@@ -8,6 +15,7 @@ import { createDockerDispatcher } from './dispatchers/dockerDispatcher';
 import { createGpuDispatcher } from './dispatchers/gpuDispatcher';
 import { createModelConfigDispatcher } from './dispatchers/modelConfigDispatcher';
 import { loadMonitoringConfig } from '../config/loadConfig';
+import { monitorEnv } from '../../env';
 import type { RunningDispatcher, SharedRuntimeDeps } from './dispatchers/createDispatcher';
 import { randomUUID } from 'crypto';
 
@@ -21,6 +29,15 @@ interface MonitoringRuntime {
 
 let runtimePromise: Promise<MonitoringRuntime> | null = null;
 let runtimeInstance: MonitoringRuntime | null = null;
+
+function diffQueueCounters(current: QueueCounterSnapshot, previous: QueueCounterSnapshot): QueueCounterSnapshot {
+  return {
+    bufferOverwrites: (BigInt(current.bufferOverwrites) - BigInt(previous.bufferOverwrites)).toString(10),
+    ackedDeliveries: (BigInt(current.ackedDeliveries) - BigInt(previous.ackedDeliveries)).toString(10),
+    timedOutDeliveries: (BigInt(current.timedOutDeliveries) - BigInt(previous.timedOutDeliveries)).toString(10),
+    consumerErrors: (BigInt(current.consumerErrors) - BigInt(previous.consumerErrors)).toString(10),
+  };
+}
 
 function subscribeProjectors(
   bus: MessageBus,
@@ -46,6 +63,10 @@ function subscribeProjectors(
     healthProjector.apply(event);
     healthProjector.updateQueueStats(bus);
   });
+  bus.subscribe(MONITOR_TOPICS.healthQueue, SUBSCRIPTION_GROUPS.snapshotHealth, (event) => {
+    healthProjector.apply(event);
+    healthProjector.updateQueueStats(bus);
+  });
   bus.subscribe(MONITOR_TOPICS.agentReport, SUBSCRIPTION_GROUPS.snapshotHealth, (event) =>
     healthProjector.apply(event),
   );
@@ -53,9 +74,12 @@ function subscribeProjectors(
 
 async function createMonitoringRuntime(): Promise<MonitoringRuntime> {
   const config = await loadMonitoringConfig();
-  const bus = createMessageBus();
+  const bus = createMessageBus({ ringBufferSize: config.health.queueRingBufferSize });
   const coreProjector = createCoreProjector();
   const healthProjector = createHealthProjector();
+  let queueSampleTimer: ReturnType<typeof setInterval> | null = null;
+  let previousQueueCounters: QueueCounterSnapshot | null = null;
+  const queueSamplingIntervalMs = Math.max(1000, Math.floor(config.health.queueSamplingIntervalMs || monitorEnv.queueSamplingIntervalMs));
 
   subscribeProjectors(bus, coreProjector, healthProjector);
 
@@ -88,6 +112,43 @@ async function createMonitoringRuntime(): Promise<MonitoringRuntime> {
     });
   }
 
+  function publishQueueSample(): void {
+    const totalCounters = bus.getQueueCounterSnapshot();
+    if (!previousQueueCounters) {
+      previousQueueCounters = totalCounters;
+      healthProjector.updateQueueStats(bus);
+      return;
+    }
+
+    const sampledAt = Date.now();
+    const payload: QueueHealthSamplePayload = {
+      queueStats: bus.getQueueStats(),
+      sampledAt,
+      sampledDiffCounters: diffQueueCounters(totalCounters, previousQueueCounters),
+      totalCounters,
+    };
+    previousQueueCounters = totalCounters;
+
+    bus.publish({
+      id: randomUUID(),
+      topic: MONITOR_TOPICS.healthQueue,
+      metricKey: 'queue.sample',
+      sourceId: 'local',
+      agentId: 'local-main',
+      producerId: 'runtime',
+      timestamp: sampledAt,
+      payload,
+      meta: {
+        mode: 'primary',
+        latencyMs: 0,
+        sampleWindowMs: queueSamplingIntervalMs,
+        degraded: false,
+        errorCount: 0,
+        schemaVersion: 1,
+      },
+    });
+  }
+
   const sharedDeps: SharedRuntimeDeps = {
     config,
     sourceId: 'local',
@@ -108,8 +169,15 @@ async function createMonitoringRuntime(): Promise<MonitoringRuntime> {
       for (const dispatcher of dispatchers) {
         dispatcher.start();
       }
+      publishQueueSample();
+      queueSampleTimer = setInterval(publishQueueSample, queueSamplingIntervalMs);
+      queueSampleTimer.unref?.();
     },
     async stop() {
+      if (queueSampleTimer) {
+        clearInterval(queueSampleTimer);
+        queueSampleTimer = null;
+      }
       for (const dispatcher of dispatchers) {
         await dispatcher.stop();
       }

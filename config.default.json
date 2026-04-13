@@ -16,5 +16,9 @@
     "reportToken": "change-me"
   },
   "snapshot": { "maxAgeMs": 5000 },
-  "health": { "retentionLimit": 200 }
+  "health": {
+    "retentionLimit": 200,
+    "queueSamplingIntervalMs": 10000,
+    "queueRingBufferSize": 8192
+  }
 }

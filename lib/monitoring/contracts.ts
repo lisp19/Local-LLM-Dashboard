@@ -62,18 +62,36 @@ export interface DispatcherState {
   intervalMs: number;
 }
 
+export interface QueueCounterSnapshot {
+  bufferOverwrites: string;
+  ackedDeliveries: string;
+  timedOutDeliveries: string;
+  consumerErrors: string;
+}
+
+export interface QueueStructuralStats {
+  topicCount: number;
+  groupCount: number;
+  consumerCount: number;
+  pendingDeliveries: number;
+}
+
+export interface QueueHealthSamplePayload {
+  queueStats: QueueStructuralStats;
+  sampledAt: number;
+  sampledDiffCounters: QueueCounterSnapshot;
+  totalCounters: QueueCounterSnapshot;
+}
+
+export interface QueueHealthSnapshot extends QueueStructuralStats {
+  sampledAt: number | null;
+  sampledDiffCounters: QueueCounterSnapshot;
+  totalCounters: QueueCounterSnapshot;
+}
+
 export interface HealthSnapshot {
   dispatchers: DispatcherState[];
-  queue: {
-    topicCount: number;
-    groupCount: number;
-    consumerCount: number;
-    pendingDeliveries: number;
-    bufferOverwrites: string;
-    ackedDeliveries: string;
-    timedOutDeliveries: string;
-    consumerErrors: string;
-  };
+  queue: QueueHealthSnapshot;
   agents: Array<{
     sourceId: string;
     agentId: string;

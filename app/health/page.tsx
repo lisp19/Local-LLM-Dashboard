@@ -11,11 +11,57 @@ import type { HealthSnapshot } from '../../lib/monitoring/contracts';
 const { Title, Text } = Typography;
 
 type HealthEvent = HealthSnapshot['events'][number];
+type QueueCounters = HealthSnapshot['queue']['sampledDiffCounters'];
+
+function zeroQueueCounters(): QueueCounters {
+  return {
+    bufferOverwrites: '0',
+    ackedDeliveries: '0',
+    timedOutDeliveries: '0',
+    consumerErrors: '0',
+  };
+}
+
+function parseCounter(value: string | undefined | null): bigint {
+  if (!value) return BigInt(0);
+  try {
+    return BigInt(value);
+  } catch {
+    return BigInt(0);
+  }
+}
+
+function addQueueCounters(current: QueueCounters, incoming: QueueCounters | undefined): QueueCounters {
+  const next = incoming ?? zeroQueueCounters();
+  return {
+    bufferOverwrites: (parseCounter(current.bufferOverwrites) + parseCounter(next.bufferOverwrites)).toString(10),
+    ackedDeliveries: (parseCounter(current.ackedDeliveries) + parseCounter(next.ackedDeliveries)).toString(10),
+    timedOutDeliveries: (parseCounter(current.timedOutDeliveries) + parseCounter(next.timedOutDeliveries)).toString(10),
+    consumerErrors: (parseCounter(current.consumerErrors) + parseCounter(next.consumerErrors)).toString(10),
+  };
+}
 
 export default function HealthPage() {
   const { health, status, error, lastUpdatedAt } = useMonitorTransport();
+  const [sessionQueueCounters, setSessionQueueCounters] = React.useState<QueueCounters>(zeroQueueCounters);
+  const lastAppliedSampleRef = React.useRef<number | null>(null);
 
   const isLoading = status === 'idle' || status === 'loading';
+
+  React.useEffect(() => {
+    if (!health) return;
+    const sampledAt = health.queue.sampledAt;
+    if (sampledAt == null) return;
+
+    if (lastAppliedSampleRef.current == null) {
+      lastAppliedSampleRef.current = sampledAt;
+      return;
+    }
+
+    if (lastAppliedSampleRef.current === sampledAt) return;
+    lastAppliedSampleRef.current = sampledAt;
+    setSessionQueueCounters((current) => addQueueCounters(current, health.queue.sampledDiffCounters));
+  }, [health]);
 
   return (
     <div className="min-h-screen p-5 max-w-[1400px] mx-auto space-y-4">
@@ -74,7 +120,7 @@ export default function HealthPage() {
             className="shadow-sm"
             style={{ borderRadius: 12 }}
           >
-            <QueueHealthCard queue={health.queue} />
+            <QueueHealthCard queue={health.queue} sessionCounters={sessionQueueCounters} />
           </Card>
 
           {/* External Agents */}

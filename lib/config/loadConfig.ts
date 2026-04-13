@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import type { MonitoringConfig } from './types';
+import { monitorEnv } from '../../env';
 
 const DEFAULT_CONFIG: MonitoringConfig = {
   openWebUIPort: 53000,
@@ -23,6 +24,8 @@ const DEFAULT_CONFIG: MonitoringConfig = {
   },
   health: {
     retentionLimit: 200,
+    queueSamplingIntervalMs: monitorEnv.queueSamplingIntervalMs,
+    queueRingBufferSize: monitorEnv.queueRingBufferSize,
   },
 };
 
