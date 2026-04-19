@@ -84,9 +84,9 @@
     "Quant": "AWQ W4A16",
     "Runtime": "nvidia",
     "Arch": "Dense",
-    "Context": "176k",
-    "Cache_Type_K": "FP16",
-    "Cache_Type_V": "FP16",
+    "Context": "256k",
+    "Cache_Type_K": "int8_per_token_head",
+    "Cache_Type_V": "int8_per_token_head",
     "Benchmark": "40Tks/s",
     "Pinned": true,
     "Supports_Thinking_Toggle": true
