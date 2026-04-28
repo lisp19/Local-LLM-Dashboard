@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import type { GpuMetrics } from '../contracts';
+import { runNvidiaSmi } from './nvidiaRunner';
 
 const execFileAsync = promisify(execFile);
 
@@ -22,11 +23,10 @@ async function findBinary(name: string, extraPaths: string[] = []): Promise<stri
 
 // Fallback uses narrower/simpler queries that are more compatible
 async function sampleNvidiaFallback(): Promise<GpuMetrics[]> {
-  const nvidiaSmi = await findBinary('nvidia-smi');
-  const { stdout } = await execFileAsync(nvidiaSmi, [
+  const stdout = await runNvidiaSmi([
     '--query-gpu=index,name,memory.total,memory.used',
     '--format=csv,noheader,nounits',
-  ]);
+  ], 'fallback');
 
   const lines = stdout.trim().split('\n');
   return lines

@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import type { GpuMetrics } from '../contracts';
+import { runNvidiaSmi } from './nvidiaRunner';
 
 const execFileAsync = promisify(execFile);
 
@@ -21,11 +22,10 @@ async function findBinary(name: string, extraPaths: string[] = []): Promise<stri
 }
 
 async function sampleNvidia(): Promise<GpuMetrics[]> {
-  const nvidiaSmi = await findBinary('nvidia-smi');
-  const { stdout } = await execFileAsync(nvidiaSmi, [
+  const stdout = await runNvidiaSmi([
     '--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed',
     '--format=csv,noheader,nounits',
-  ]);
+  ], 'primary');
 
   const lines = stdout.trim().split('\n');
   return lines
