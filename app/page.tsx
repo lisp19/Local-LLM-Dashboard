@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState, useRef } from 'react';
 import useSWR from 'swr';
-import { Card, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs, ConfigProvider } from 'antd';
+import { Card, Spin, Tag, Progress, Descriptions, Typography, Badge, Modal, Input, Switch, Button, Divider, Space, Tooltip, Slider, InputNumber, Table, Tabs, ConfigProvider, Select } from 'antd';
 import { DesktopOutlined, HddOutlined, AppstoreOutlined, PushpinOutlined, PushpinFilled, PlayCircleOutlined, SettingOutlined, InfoCircleOutlined, BarChartOutlined, DatabaseOutlined, BulbFilled, CodeOutlined, CheckCircleFilled, EllipsisOutlined, CloseCircleFilled } from '@ant-design/icons';
 import { DockerIcon } from '../components/icons/DockerIcon';
 import WebShellModal from '../components/WebShellModal';
@@ -28,6 +28,7 @@ interface BenchmarkContainer {
   backend: string;
   runtime: string;
   supportsThinkingToggle: boolean;
+  isCustom?: boolean;
 }
 
 const DEFAULT_BENCH_PROMPTS = [
@@ -319,6 +320,29 @@ export default function DashboardPage() {
       backend: String(modelConfig?.Backend || 'unknown'),
       runtime: String(modelConfig?.Runtime || 'cpu').toLowerCase(),
       supportsThinkingToggle: modelConfig?.Supports_Thinking_Toggle !== undefined ? Boolean(modelConfig?.Supports_Thinking_Toggle) : true
+    });
+    setReasoningOutput('');
+    setStreamOutput('');
+    setTtft(null);
+    setTps(null);
+    setTokenCount(0);
+    setDecodeTime(null);
+    setBenchmarkMode(null);
+    setBenchmarkLogs('');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenCustomBenchmark = () => {
+    setBenchmarkContainer({
+      id: 'custom-endpoint',
+      name: 'Custom Endpoint',
+      port: '8000',
+      model: 'default',
+      servedName: 'default',
+      backend: 'custom',
+      runtime: 'nvidia', // Default to nvidia for better compatibility in python script
+      supportsThinkingToggle: true,
+      isCustom: true
     });
     setReasoningOutput('');
     setStreamOutput('');
@@ -827,7 +851,18 @@ export default function DashboardPage() {
 
           {/* Containers & Models */}
           <div className="pt-1">
-            <Title level={4} style={{ marginBottom: '12px' }}><AppstoreOutlined /> Running Containers</Title>
+            <div className="flex items-center justify-between mb-3">
+              <Title level={4} style={{ margin: 0 }}><AppstoreOutlined /> Running Containers</Title>
+              <Button 
+                type="dashed" 
+                size="small" 
+                icon={<PlayCircleOutlined />} 
+                onClick={handleOpenCustomBenchmark}
+                className="text-slate-500 hover:text-blue-600 hover:border-blue-400"
+              >
+                自定义测速
+              </Button>
+            </div>
             {data?.containers.length === 0 ? (
               <Card className="shadow-sm"><div className="text-center py-10 text-gray-400">No Docker containers running.</div></Card>
             ) : (() => {
@@ -1053,6 +1088,39 @@ export default function DashboardPage() {
           </Draggable>
         )}
       >
+        {benchmarkContainer?.isCustom && (
+          <div className="flex gap-3 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <div className="flex-1">
+              <Text type="secondary" className="text-xs mb-1 block">Port:</Text>
+              <Input 
+                value={benchmarkContainer.port || ''} 
+                onChange={e => setBenchmarkContainer(prev => prev ? { ...prev, port: e.target.value } : null)}
+                placeholder="e.g. 8000"
+              />
+            </div>
+            <div className="flex-[2]">
+              <Text type="secondary" className="text-xs mb-1 block">Model Name:</Text>
+              <Input 
+                value={benchmarkContainer.servedName} 
+                onChange={e => setBenchmarkContainer(prev => prev ? { ...prev, servedName: e.target.value, model: e.target.value } : null)}
+                placeholder="e.g. qwen2.5-7b"
+              />
+            </div>
+            <div className="flex-1">
+              <Text type="secondary" className="text-xs mb-1 block">Runtime:</Text>
+              <Select 
+                value={benchmarkContainer.runtime} 
+                onChange={val => setBenchmarkContainer(prev => prev ? { ...prev, runtime: val } : null)}
+                options={[
+                  { label: 'Nvidia', value: 'nvidia' },
+                  { label: 'ROCm', value: 'rocm' },
+                  { label: 'CPU', value: 'cpu' }
+                ]}
+                className="w-full"
+              />
+            </div>
+          </div>
+        )}
         <Tabs defaultActiveKey="1" items={[
           {
             key: '1',
@@ -1060,15 +1128,17 @@ export default function DashboardPage() {
             children: (
               <div className="pt-2">
                 <div className="mb-4">
-                  <div className="mb-3">
-                    <Text type="secondary" className="text-xs mb-1 block">Local API Endpoint:</Text>
-                    <Typography.Paragraph 
-                      copyable={{ text: `http://${hostName}:${benchmarkContainer?.port}/v1` }}
-                      className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200 break-all"
-                    >
-                      http://{hostName}:{benchmarkContainer?.port}/v1
-                    </Typography.Paragraph>
-                  </div>
+                  {!benchmarkContainer?.isCustom && (
+                    <div className="mb-3">
+                      <Text type="secondary" className="text-xs mb-1 block">Local API Endpoint:</Text>
+                      <Typography.Paragraph 
+                        copyable={{ text: `http://${hostName}:${benchmarkContainer?.port}/v1` }}
+                        className="bg-slate-100 p-2 rounded text-xs font-mono text-slate-700 m-0 border border-slate-200 break-all"
+                      >
+                        http://{hostName}:{benchmarkContainer?.port}/v1
+                      </Typography.Paragraph>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-2">
                      <Text strong className="text-slate-700">Test Prompt:</Text>
                      <Space>
